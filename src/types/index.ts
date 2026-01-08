@@ -48,7 +48,7 @@ export interface Contract {
 export interface ContractTemplate {
   id: string;
   template_type: 'individual' | 'company';
-  package_type: 'pius-plus' | 'pius-pro';
+  package_type: string;
   content: string;
   created_at: string;
   updated_at: string;
@@ -119,7 +119,7 @@ export interface AdminUser {
 }
 
 export interface FormData {
-  paket: 'pius-plus' | 'pius-pro';
+  paket: string;
   ime: string;
   prezime: string;
   adresa: string;

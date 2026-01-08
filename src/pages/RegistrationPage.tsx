@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useForm } from 'react-hook-form';
+import { useForm, SubmitHandler } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { ArrowLeft, ArrowRight, User, Building, CreditCard, CheckCircle, Package, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
@@ -112,7 +112,7 @@ export default function RegistrationPage({ preselectedPackage }: Props) {
 
   const totalSteps = preselectedPackage ? 3 : 4;
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit: SubmitHandler<FormData> = async (data) => {
     setLoading(true);
     setError('');
 

@@ -6,7 +6,6 @@ import RegistrationPage from './pages/RegistrationPage';
 import ContractPage from './pages/ContractPage';
 import ThankYouPage from './pages/ThankYouPage';
 import CourseRegistrationPage from './pages/CourseRegistrationPage';
-import CustomLandingPage from './pages/CustomLandingPage';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminStudents from './pages/admin/AdminStudents';

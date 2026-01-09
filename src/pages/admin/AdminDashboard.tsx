@@ -42,13 +42,21 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!stats) return null;
+  if (!stats) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center">
+          <p className="text-gray-400">Nema dostupnih podataka</p>
+        </div>
+      </div>
+    );
+  }
 
   const cards = [
-    { icon: Users, label: 'Ukupno studenata', value: stats.total_students, color: 'text-blue-400' },
-    { icon: FileText, label: 'Potpisanih ugovora', value: stats.signed_contracts, color: 'text-green-400' },
-    { icon: Euro, label: 'Ukupni prihod', value: `${stats.revenue.total.toLocaleString()}€`, color: 'text-pius' },
-    { icon: TrendingUp, label: 'PIUS PRO', value: stats.by_package.pius_pro, color: 'text-purple-400' },
+    { icon: Users, label: 'Ukupno studenata', value: stats.total_students || 0, color: 'text-blue-400' },
+    { icon: FileText, label: 'Potpisanih ugovora', value: stats.signed_contracts || 0, color: 'text-green-400' },
+    { icon: Euro, label: 'Ukupni prihod', value: `${(stats.revenue?.total || 0).toLocaleString()}€`, color: 'text-pius' },
+    { icon: TrendingUp, label: 'PIUS PRO', value: stats.by_package?.pius_pro || 0, color: 'text-purple-400' },
   ];
 
   return (
@@ -83,15 +91,15 @@ export default function AdminDashboard() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-gray-400">Upisani</span>
-              <span className="text-white font-semibold">{stats.by_status.enrolled}</span>
+              <span className="text-white font-semibold">{stats.by_status?.enrolled || 0}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-400">Ugovor potpisan</span>
-              <span className="text-pius font-semibold">{stats.by_status.contract_signed}</span>
+              <span className="text-pius font-semibold">{stats.by_status?.contract_signed || 0}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-400">Završeni</span>
-              <span className="text-green-400 font-semibold">{stats.by_status.completed}</span>
+              <span className="text-green-400 font-semibold">{stats.by_status?.completed || 0}</span>
             </div>
           </div>
         </div>
@@ -100,16 +108,16 @@ export default function AdminDashboard() {
           <h3 className="text-lg font-semibold mb-4">Prihod po paketu</h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-gray-400">PIUS PLUS ({stats.by_package.pius_plus})</span>
-              <span className="text-white font-semibold">{stats.revenue.pius_plus.toLocaleString()}€</span>
+              <span className="text-gray-400">PIUS PLUS ({stats.by_package?.pius_plus || 0})</span>
+              <span className="text-white font-semibold">{(stats.revenue?.pius_plus || 0).toLocaleString()}€</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-gray-400">PIUS PRO ({stats.by_package.pius_pro})</span>
-              <span className="text-pius font-semibold">{stats.revenue.pius_pro.toLocaleString()}€</span>
+              <span className="text-gray-400">PIUS PRO ({stats.by_package?.pius_pro || 0})</span>
+              <span className="text-pius font-semibold">{(stats.revenue?.pius_pro || 0).toLocaleString()}€</span>
             </div>
             <div className="border-t border-gray-700 pt-4 flex items-center justify-between">
               <span className="text-white font-semibold">UKUPNO</span>
-              <span className="text-2xl font-bold text-pius">{stats.revenue.total.toLocaleString()}€</span>
+              <span className="text-2xl font-bold text-pius">{(stats.revenue?.total || 0).toLocaleString()}€</span>
             </div>
           </div>
         </div>
@@ -118,43 +126,49 @@ export default function AdminDashboard() {
       {/* Recent Students */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
         <h3 className="text-lg font-semibold mb-4">Nedavne registracije</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="text-left text-gray-400 text-sm">
-                <th className="pb-3">Student</th>
-                <th className="pb-3">Email</th>
-                <th className="pb-3">Paket</th>
-                <th className="pb-3">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800">
-              {stats.recent_students.map((student: any) => (
-                <tr key={student.id}>
-                  <td className="py-3 text-white">{student.first_name} {student.last_name}</td>
-                  <td className="py-3 text-gray-400">{student.email}</td>
-                  <td className="py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      student.package_type === 'pius-pro' ? 'bg-purple-900/50 text-purple-300' : 'bg-gray-800 text-gray-300'
-                    }`}>
-                      {student.package_type === 'pius-plus' ? 'PLUS' : 'PRO'}
-                    </span>
-                  </td>
-                  <td className="py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      student.status === 'contract_signed' ? 'bg-pius/20 text-pius' :
-                      student.status === 'completed' ? 'bg-green-900/50 text-green-300' :
-                      'bg-gray-800 text-gray-300'
-                    }`}>
-                      {student.status === 'enrolled' ? 'Upisan' :
-                       student.status === 'contract_signed' ? 'Potpisan' : 'Završen'}
-                    </span>
-                  </td>
+        {stats.recent_students && stats.recent_students.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead>
+                <tr className="text-left text-gray-400 text-sm">
+                  <th className="pb-3">Student</th>
+                  <th className="pb-3">Email</th>
+                  <th className="pb-3">Paket</th>
+                  <th className="pb-3">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-800">
+                {stats.recent_students.map((student: any) => (
+                  <tr key={student.id}>
+                    <td className="py-3 text-white">{student.first_name} {student.last_name}</td>
+                    <td className="py-3 text-gray-400">{student.email}</td>
+                    <td className="py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        student.package_type === 'pius-pro' ? 'bg-purple-900/50 text-purple-300' : 'bg-gray-800 text-gray-300'
+                      }`}>
+                        {student.package_type === 'pius-plus' ? 'PLUS' : 'PRO'}
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        student.status === 'contract_signed' ? 'bg-pius/20 text-pius' :
+                        student.status === 'completed' ? 'bg-green-900/50 text-green-300' :
+                        'bg-gray-800 text-gray-300'
+                      }`}>
+                        {student.status === 'enrolled' ? 'Upisan' :
+                         student.status === 'contract_signed' ? 'Potpisan' : 'Završen'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-400">
+            Nema nedavnih registracija
+          </div>
+        )}
       </div>
     </motion.div>
   );

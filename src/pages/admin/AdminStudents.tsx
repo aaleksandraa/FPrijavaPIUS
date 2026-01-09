@@ -119,7 +119,6 @@ export default function AdminStudents() {
 
     return matchesSearch && matchesStatus && matchesPayment;
   }) : [];
-  });
 
   if (loading) {
     return (

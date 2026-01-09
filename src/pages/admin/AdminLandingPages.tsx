@@ -30,11 +30,21 @@ export default function AdminLandingPages() {
 
   const loadData = async () => {
     try {
-      const [pagesRes, packagesRes] = await Promise.all([getLandingPages(), getPackages(true)]); // Include inactive packages for admin
-      setPages(pagesRes.data);
-      setPackages(packagesRes.data);
+      const [pagesRes, packagesRes] = await Promise.all([
+        getLandingPages(),
+        getPackages(true)
+      ]);
+      
+      // Ensure we have arrays
+      const pagesData = Array.isArray(pagesRes.data) ? pagesRes.data : [];
+      const packagesData = Array.isArray(packagesRes.data) ? packagesRes.data : [];
+      
+      setPages(pagesData);
+      setPackages(packagesData);
     } catch (err) {
-      console.error(err);
+      console.error('Error loading landing pages:', err);
+      setPages([]);
+      setPackages([]);
     } finally {
       setLoading(false);
     }

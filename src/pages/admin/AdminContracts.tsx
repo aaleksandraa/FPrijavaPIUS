@@ -21,10 +21,17 @@ export default function AdminContracts() {
         getContracts(),
         getStudents()
       ]);
-      setContracts(contractsRes.data);
-      setStudents(studentsRes.data);
+      
+      // Ensure we have arrays
+      const contractsData = Array.isArray(contractsRes.data) ? contractsRes.data : [];
+      const studentsData = Array.isArray(studentsRes.data) ? studentsRes.data : [];
+      
+      setContracts(contractsData);
+      setStudents(studentsData);
     } catch (err) {
-      console.error(err);
+      console.error('Error loading contracts:', err);
+      setContracts([]);
+      setStudents([]);
     } finally {
       setLoading(false);
     }

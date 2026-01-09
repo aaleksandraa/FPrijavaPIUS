@@ -33,10 +33,17 @@ export default function AdminStudents() {
         getStudents(),
         getContracts()
       ]);
-      setStudents(studentsRes.data);
-      setContracts(contractsRes.data);
+      
+      // Ensure we have arrays
+      const studentsData = Array.isArray(studentsRes.data) ? studentsRes.data : [];
+      const contractsData = Array.isArray(contractsRes.data) ? contractsRes.data : [];
+      
+      setStudents(studentsData);
+      setContracts(contractsData);
     } catch (err) {
-      console.error(err);
+      console.error('Error loading students:', err);
+      setStudents([]);
+      setContracts([]);
     } finally {
       setLoading(false);
     }
@@ -100,7 +107,7 @@ export default function AdminStudents() {
     }
   };
 
-  const filteredStudents = students.filter(student => {
+  const filteredStudents = Array.isArray(students) ? students.filter(student => {
     const matchesSearch =
       student.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -111,6 +118,7 @@ export default function AdminStudents() {
     const matchesPayment = filterPayment === 'all' || student.payment_method === filterPayment;
 
     return matchesSearch && matchesStatus && matchesPayment;
+  }) : [];
   });
 
   if (loading) {

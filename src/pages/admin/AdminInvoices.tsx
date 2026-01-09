@@ -54,18 +54,36 @@ export default function AdminInvoices() {
 
   const loadData = async () => {
     try {
-      const [invoicesRes, studentsRes, packagesRes, settingsRes] = await Promise.all([getInvoices(), getStudents(), getPackages(true), getSettings()]); // Include inactive packages for admin
-      setInvoices(invoicesRes.data);
-      setAllStudents(studentsRes.data);
-      setPackages(packagesRes.data);
-      setSettings(settingsRes.data);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+      const [invoicesRes, studentsRes, packagesRes, settingsRes] = await Promise.all([
+        getInvoices(),
+        getStudents(),
+        getPackages(true),
+        getSettings()
+      ]);
+      
+      // Ensure we have arrays
+      const invoicesData = Array.isArray(invoicesRes.data) ? invoicesRes.data : [];
+      const studentsData = Array.isArray(studentsRes.data) ? studentsRes.data : [];
+      const packagesData = Array.isArray(packagesRes.data) ? packagesRes.data : [];
+      
+      setInvoices(invoicesData);
+      setAllStudents(studentsData);
+      setPackages(packagesData);
+      setSettings(settingsRes.data || { payment_reminder_enabled: false, payment_reminder_days_before: 2, payment_reminder_email_template: '' });
+    } catch (err) {
+      console.error('Error loading invoices:', err);
+      setInvoices([]);
+      setAllStudents([]);
+      setPackages([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filteredStudents = allStudents.filter(student => {
+  const filteredStudents = Array.isArray(allStudents) ? allStudents.filter(student => {
     const fullName = `${student.first_name} ${student.last_name}`.toLowerCase();
     return fullName.includes(studentSearchTerm.toLowerCase()) || student.email.toLowerCase().includes(studentSearchTerm.toLowerCase());
-  });
+  }) : [];
 
   const handleStudentSelect = (student: Student) => {
     setSelectedStudent(student);
@@ -193,11 +211,11 @@ export default function AdminInvoices() {
     }
   };
 
-  const filteredInvoices = invoices.filter(invoice => {
+  const filteredInvoices = Array.isArray(invoices) ? invoices.filter(invoice => {
     const matchesSearch = invoice.student?.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) || invoice.student?.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) || invoice.invoice_number.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || invoice.status === filterStatus;
     return matchesSearch && matchesStatus;
-  });
+  }) : [];
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -208,7 +226,7 @@ export default function AdminInvoices() {
     }
   };
 
-  const fixedPackages = packages.filter(p => p.payment_type === 'fixed');
+  const fixedPackages = Array.isArray(packages) ? packages.filter(p => p.payment_type === 'fixed') : [];
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pius" /></div>;
 

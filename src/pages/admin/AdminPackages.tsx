@@ -38,9 +38,11 @@ export default function AdminPackages() {
   const loadPackages = async () => {
     try {
       const res = await getPackages(true); // Include inactive packages for admin
-      setPackages(res.data);
+      const packagesData = Array.isArray(res.data) ? res.data : [];
+      setPackages(packagesData);
     } catch (err) {
-      console.error(err);
+      console.error('Error loading packages:', err);
+      setPackages([]);
     } finally {
       setLoading(false);
     }

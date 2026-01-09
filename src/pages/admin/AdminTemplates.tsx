@@ -18,9 +18,11 @@ export default function AdminTemplates() {
   const loadTemplates = async () => {
     try {
       const res = await getContractTemplates();
-      setTemplates(res.data);
+      const templatesData = Array.isArray(res.data) ? res.data : [];
+      setTemplates(templatesData);
     } catch (err) {
-      console.error(err);
+      console.error('Error loading templates:', err);
+      setTemplates([]);
     } finally {
       setLoading(false);
     }

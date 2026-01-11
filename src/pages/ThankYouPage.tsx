@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle, Mail, Calendar, MessageCircle, CreditCard, Sparkles } from 'lucide-react';
+import { CheckCircle, Mail, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getPackages } from '../lib/api';
 import type { Package } from '../types';
@@ -73,25 +73,6 @@ export default function ThankYouPage() {
             <div className="flex items-center p-4 bg-gray-800/50 border border-pius/20 rounded-xl">
               <Mail className="h-6 w-6 text-pius mr-3" />
               <span className="text-gray-300">Provjerite email za potvrdu i instrukcije</span>
-            </div>
-
-            <div className="flex items-center p-4 bg-gray-800/50 border border-pius/20 rounded-xl">
-              <MessageCircle className="h-6 w-6 text-pius mr-3" />
-              <span className="text-gray-300">Uskoro ćete biti dodani u WhatsApp grupu</span>
-            </div>
-
-            {isContract && packageData && (
-              <div className="flex items-center p-4 bg-gray-800/50 border border-pius/20 rounded-xl">
-                <CreditCard className="h-6 w-6 text-pius mr-3" />
-                <span className="text-gray-300">
-                  Izvršite uplatu prve rate od €{packageData.installments?.[0]?.amount ? Number(packageData.installments[0].amount).toFixed(0) : '0'} u roku od 48h
-                </span>
-              </div>
-            )}
-
-            <div className="flex items-center p-4 bg-gray-800/50 border border-pius/20 rounded-xl">
-              <Calendar className="h-6 w-6 text-pius mr-3" />
-              <span className="text-gray-300">Bićete obaviješteni o detaljima početka kursa</span>
             </div>
           </div>
 

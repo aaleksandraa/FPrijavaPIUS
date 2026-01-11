@@ -66,6 +66,7 @@ export interface Package {
   image_url?: string;
   is_active: boolean;
   show_on_landing: boolean;
+  show_first_installment_reminder?: boolean;
   has_contract: boolean;
   duration_days: number;
   features?: string[];

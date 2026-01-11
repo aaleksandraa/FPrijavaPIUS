@@ -26,6 +26,7 @@ export default function AdminPackages() {
     description: '',
     is_active: true,
     show_on_landing: false,
+    show_first_installment_reminder: true,
     has_contract: true,
     duration_days: 60,
     features: [],
@@ -220,7 +221,7 @@ export default function AdminPackages() {
         <textarea value={pkg.description || ''} onChange={(e) => setFn({ ...pkg, description: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white h-20" placeholder="Kratak opis kursa..." />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <label className="flex items-center gap-2 cursor-pointer bg-gray-800/50 p-3 rounded-lg">
           <input type="checkbox" checked={pkg.is_active ?? true} onChange={(e) => setFn({ ...pkg, is_active: e.target.checked })} className="w-4 h-4 text-pius" />
           <span className="text-sm text-gray-300">Aktivan</span>
@@ -232,6 +233,10 @@ export default function AdminPackages() {
         <label className="flex items-center gap-2 cursor-pointer bg-gray-800/50 p-3 rounded-lg">
           <input type="checkbox" checked={pkg.has_contract ?? true} onChange={(e) => setFn({ ...pkg, has_contract: e.target.checked })} className="w-4 h-4 text-pius" />
           <span className="text-sm text-gray-300">Ima ugovor</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer bg-gray-800/50 p-3 rounded-lg">
+          <input type="checkbox" checked={pkg.show_first_installment_reminder ?? true} onChange={(e) => setFn({ ...pkg, show_first_installment_reminder: e.target.checked })} className="w-4 h-4 text-pius" />
+          <span className="text-sm text-gray-300">Prikaži "Prva rata" u emailu</span>
         </label>
       </div>
 

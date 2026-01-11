@@ -1,15 +1,38 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircle, Mail, Calendar, MessageCircle, CreditCard, Sparkles } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { getPackages } from '../lib/api';
+import type { Package } from '../types';
 
 export default function ThankYouPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isContract = false, package: selectedPackage = 'pius-plus' } = location.state || {};
+  const { isContract = false, package: selectedPackageSlug = '' } = location.state || {};
+  
+  const [packageData, setPackageData] = useState<Package | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const prices = selectedPackage === 'pius-plus'
-    ? { first: '400€', second: '500€', third: '900€' }
-    : { first: '500€', second: '1.000€', third: '1.000€' };
+  useEffect(() => {
+    const loadPackageData = async () => {
+      if (!selectedPackageSlug) {
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        const res = await getPackages(true);
+        const pkg = res.data.find((p: Package) => p.slug === selectedPackageSlug);
+        setPackageData(pkg || null);
+      } catch (err) {
+        console.error('Failed to load package data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadPackageData();
+  }, [selectedPackageSlug]);
 
   return (
     <div className="min-h-screen bg-black text-white font-poppins flex items-center justify-center py-12">
@@ -61,11 +84,11 @@ export default function ThankYouPage() {
               <span className="text-gray-300">Uskoro ćete biti dodani u WhatsApp grupu</span>
             </div>
 
-            {isContract && (
+            {isContract && packageData && (
               <div className="flex items-center p-4 bg-gray-800/50 border border-pius/20 rounded-xl">
                 <CreditCard className="h-6 w-6 text-pius mr-3" />
                 <span className="text-gray-300">
-                  Izvršite uplatu prve rate od {prices.first} u roku od 24h
+                  Izvršite uplatu prve rate od €{packageData.installments?.[0]?.amount ? Number(packageData.installments[0].amount).toFixed(0) : '0'} u roku od 48h
                 </span>
               </div>
             )}
@@ -76,24 +99,29 @@ export default function ThankYouPage() {
             </div>
           </div>
 
-          {isContract && (
+          {isContract && packageData && packageData.installments && packageData.installments.length > 0 && (
             <div className="bg-pius/10 border border-pius/30 rounded-xl p-6 mb-8">
               <h3 className="text-lg font-semibold text-pius mb-4 flex items-center justify-center">
                 <Sparkles className="h-5 w-5 mr-2" />
-                Detalji plaćanja
+                Detalji plaćanja - {packageData.name}
               </h3>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Prva rata (kroz 24h):</span>
-                  <span className="font-semibold text-pius">{prices.first}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Druga rata (do 01.11.):</span>
-                  <span className="font-semibold text-white">{prices.second}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Treća rata (do 01.12.):</span>
-                  <span className="font-semibold text-white">{prices.third}</span>
+                {packageData.installments.map((inst, index) => (
+                  <div key={inst.id} className="flex justify-between">
+                    <span className="text-gray-300">
+                      {inst.installment_number === 1 ? 'Prva rata (kroz 48h)' : `${inst.installment_number}. rata`}
+                      {inst.due_description && ` (${inst.due_description})`}:
+                    </span>
+                    <span className={`font-semibold ${index === 0 ? 'text-pius' : 'text-white'}`}>
+                      €{Number(inst.amount).toFixed(0)}
+                    </span>
+                  </div>
+                ))}
+                <div className="border-t border-pius/30 pt-3 mt-3">
+                  <div className="flex justify-between font-bold">
+                    <span className="text-gray-300">Ukupno:</span>
+                    <span className="text-pius">€{Number(packageData.price).toFixed(0)}</span>
+                  </div>
                 </div>
                 <div className="border-t border-pius/30 pt-3 mt-3">
                   <div className="text-xs text-gray-400 mb-2">Račun za uplate:</div>

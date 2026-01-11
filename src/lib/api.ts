@@ -89,7 +89,8 @@ export const createPackage = (data: any) => api.post('/packages', data);
 export const updatePackage = (id: string, data: any) =>
   api.put(`/packages/${id}`, data);
 
-export const deletePackage = (id: string) => api.delete(`/packages/${id}`);
+export const deletePackage = (id: string, force = false) => 
+  api.delete(`/packages/${id}${force ? '?force=true' : ''}`);
 
 // Invoices
 export const getInvoices = () => api.get('/invoices');

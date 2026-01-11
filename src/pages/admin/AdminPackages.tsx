@@ -12,6 +12,8 @@ export default function AdminPackages() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [packageToDelete, setPackageToDelete] = useState<PackageType | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [forceDelete, setForceDelete] = useState(false);
 
   const emptyPackage: Partial<PackageType> = {
     name: '',
@@ -24,7 +26,8 @@ export default function AdminPackages() {
     has_contract: true,
     duration_days: 60,
     features: [],
-    contract_template: '',
+    contract_template_individual: '',
+    contract_template_company: '',
     installments: [],
   };
 
@@ -78,13 +81,22 @@ export default function AdminPackages() {
 
   const handleDelete = async () => {
     if (!packageToDelete) return;
+    setDeleteError(null);
     try {
-      await deletePackage(packageToDelete.id);
+      await deletePackage(packageToDelete.id, forceDelete);
       await loadPackages();
       setShowDeleteModal(false);
       setPackageToDelete(null);
-    } catch (err) {
+      setForceDelete(false);
+    } catch (err: any) {
       console.error(err);
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Greška pri brisanju paketa';
+      setDeleteError(errorMessage);
+      
+      // If error indicates we can force delete, don't close modal
+      if (err.response?.data?.can_force_delete) {
+        // Keep modal open so user can check force delete
+      }
     }
   };
 
@@ -116,6 +128,20 @@ export default function AdminPackages() {
     setFn({ ...pkg, installments });
   };
 
+  const formatDateForInput = (date: string | null | undefined): string => {
+    if (!date) return '';
+    // If already in YYYY-MM-DD format, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+    // Try to parse and format
+    try {
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return '';
+      return d.toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
+  };
+
   const removeInstallment = (pkg: Partial<PackageType>, setFn: (p: Partial<PackageType>) => void, index: number) => {
     const installments = [...(pkg.installments || [])];
     installments.splice(index, 1);
@@ -131,8 +157,26 @@ export default function AdminPackages() {
           <input type="text" value={pkg.name || ''} onChange={(e) => setFn({ ...pkg, name: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" placeholder="npr. Online Marketing Kurs" />
         </div>
         <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Slug (URL) *</label>
+          <input 
+            type="text" 
+            value={pkg.slug || ''} 
+            onChange={(e) => setFn({ ...pkg, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} 
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white font-mono text-sm" 
+            placeholder="npr. online-marketing-kurs" 
+          />
+          <p className="text-xs text-gray-500 mt-1">Koristi se u URL-u (samo mala slova, brojevi i crtice)</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">Cijena (€) *</label>
           <input type="number" value={pkg.price || ''} onChange={(e) => setFn({ ...pkg, price: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Trajanje (dani)</label>
+          <input type="number" value={pkg.duration_days || 60} onChange={(e) => setFn({ ...pkg, duration_days: parseInt(e.target.value) || 60 })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
         </div>
       </div>
 
@@ -227,7 +271,12 @@ export default function AdminPackages() {
                   </div>
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Rok (datum)</label>
-                    <input type="date" value={inst.due_date || ''} onChange={(e) => updateInstallment(pkg, setFn, index, 'due_date', e.target.value)} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white" />
+                    <input 
+                      type="date" 
+                      value={formatDateForInput(inst.due_date)} 
+                      onChange={(e) => updateInstallment(pkg, setFn, index, 'due_date', e.target.value || null)} 
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white" 
+                    />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs text-gray-400 mb-1">Opis roka</label>
@@ -240,15 +289,40 @@ export default function AdminPackages() {
         </div>
       )}
 
-      {/* Contract Template */}
+      {/* Contract Templates */}
       {pkg.has_contract && (
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            <FileText className="inline h-4 w-4 mr-1" />
-            Tekst ugovora
-          </label>
-          <textarea value={pkg.contract_template || ''} onChange={(e) => setFn({ ...pkg, contract_template: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white h-40 font-mono text-sm" placeholder="Unesite tekst ugovora... Koristite {ime}, {prezime}, {email}, {adresa}, {grad}, {drzava}, {cijena}, {datum} za placeholder-e." />
-          <p className="text-xs text-gray-500 mt-1">Placeholder-i: {'{ime}'}, {'{prezime}'}, {'{email}'}, {'{adresa}'}, {'{grad}'}, {'{drzava}'}, {'{cijena}'}, {'{datum}'}</p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              <FileText className="inline h-4 w-4 mr-1" />
+              Ugovor za fizička lica
+            </label>
+            <textarea 
+              value={pkg.contract_template_individual || ''} 
+              onChange={(e) => setFn({ ...pkg, contract_template_individual: e.target.value })} 
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white h-40 font-mono text-sm" 
+              placeholder="Unesite tekst ugovora za fizička lica... Koristite {ime}, {prezime}, {email}, {adresa}, {grad}, {drzava}, {cijena}, {datum} za placeholder-e." 
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Placeholder-i: {'{ime}'}, {'{prezime}'}, {'{email}'}, {'{adresa}'}, {'{grad}'}, {'{drzava}'}, {'{brojLicnogDokumenta}'}, {'{telefon}'}, {'{cijena}'}, {'{datum}'}
+            </p>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              <FileText className="inline h-4 w-4 mr-1" />
+              Ugovor za pravna lica (firme)
+            </label>
+            <textarea 
+              value={pkg.contract_template_company || ''} 
+              onChange={(e) => setFn({ ...pkg, contract_template_company: e.target.value })} 
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white h-40 font-mono text-sm" 
+              placeholder="Unesite tekst ugovora za pravna lica... Dodatno možete koristiti {nazivFirme}, {pdvBroj}, {adresaFirme}, {registracijaFirme}..." 
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Dodatni placeholder-i za firme: {'{nazivFirme}'}, {'{pdvBroj}'}, {'{adresaFirme}'}, {'{postanskiBrojFirme}'}, {'{mjestoFirme}'}, {'{drzavaFirme}'}, {'{registracijaFirme}'}
+            </p>
+          </div>
         </div>
       )}
     </div>
@@ -411,17 +485,42 @@ export default function AdminPackages() {
       {/* Delete Modal */}
       <AnimatePresence>
         {showDeleteModal && packageToDelete && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowDeleteModal(false)}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => { setShowDeleteModal(false); setDeleteError(null); setForceDelete(false); }}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-gray-900 border border-gray-700 rounded-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
               <div className="text-center">
                 <div className="mx-auto w-12 h-12 bg-red-900/30 rounded-full flex items-center justify-center mb-4">
                   <Trash2 className="h-6 w-6 text-red-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-white mb-2">Obriši kurs?</h3>
-                <p className="text-gray-400 mb-6">Da li ste sigurni da želite obrisati kurs "{packageToDelete.name}"?</p>
+                <h3 className="text-lg font-semibold text-white mb-2">Obriši paket?</h3>
+                <p className="text-gray-400 mb-6">Da li ste sigurni da želite obrisati paket "{packageToDelete.name}"?</p>
+                
+                {deleteError && (
+                  <div className="bg-red-900/20 border border-red-700 rounded-lg p-3 mb-4 text-left">
+                    <p className="text-red-300 text-sm">{deleteError}</p>
+                    
+                    <label className="flex items-center gap-2 mt-3 cursor-pointer bg-red-900/30 p-2 rounded">
+                      <input 
+                        type="checkbox" 
+                        checked={forceDelete} 
+                        onChange={(e) => setForceDelete(e.target.checked)} 
+                        className="w-4 h-4 text-red-600" 
+                      />
+                      <span className="text-sm text-gray-300">
+                        Prisilno brisanje (ukloni paket sa studenata)
+                      </span>
+                    </label>
+                    
+                    <p className="text-gray-400 text-xs mt-2">
+                      ⚠️ Ovo će ukloniti referencu paketa sa svih studenata koji ga koriste.
+                    </p>
+                  </div>
+                )}
+                
                 <div className="flex gap-3">
-                  <button onClick={() => setShowDeleteModal(false)} className="flex-1 border border-gray-600 text-gray-300 hover:bg-gray-800 py-2 rounded-lg font-medium">Odustani</button>
-                  <button onClick={handleDelete} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-medium">Obriši</button>
+                  <button onClick={() => { setShowDeleteModal(false); setDeleteError(null); setForceDelete(false); }} className="flex-1 border border-gray-600 text-gray-300 hover:bg-gray-800 py-2 rounded-lg font-medium">Odustani</button>
+                  <button onClick={handleDelete} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-medium">
+                    {forceDelete ? 'Prisilno obriši' : 'Obriši'}
+                  </button>
                 </div>
               </div>
             </motion.div>

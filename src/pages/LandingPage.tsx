@@ -1,9 +1,34 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Star, Users, Calendar, Award, Clock, CheckCircle, Sparkles } from 'lucide-react';
+import { Star, Users, Calendar, Award, Clock, CheckCircle, Sparkles, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { getPackages } from '../lib/api';
+import type { Package } from '../types';
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const [packages, setPackages] = useState<Package[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadPackages = async () => {
+      try {
+        const res = await getPackages();
+        // Filter only PIUS packages with installments
+        const piusPackages = res.data.filter((p: Package) => 
+          p.payment_type === 'installments' && p.slug.startsWith('pius')
+        );
+        // Sort by price
+        piusPackages.sort((a: Package, b: Package) => Number(a.price) - Number(b.price));
+        setPackages(piusPackages);
+      } catch (err) {
+        console.error('Failed to load packages:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadPackages();
+  }, []);
 
   return (
     <div className="min-h-screen bg-black text-white font-poppins">
@@ -39,48 +64,63 @@ export default function LandingPage() {
               <span className="text-pius font-semibold"> profesiju</span> uz Željku Radičanin
             </p>
 
-            {/* Price Card */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-gradient-to-br from-gray-900 to-black border border-pius/30 rounded-3xl p-8 mb-8 max-w-2xl mx-auto"
-            >
-              <div className="text-6xl font-black text-pius mb-4">1.800€</div>
-              <div className="text-gray-400 mb-6">Kompletna transformacija</div>
-
-              <div className="bg-pius/10 border border-pius/50 rounded-2xl p-6 mb-6">
-                <div className="flex items-center justify-center gap-2 mb-3">
-                  <Sparkles className="h-6 w-6 text-pius" />
-                  <span className="text-pius font-bold text-lg">RATE BEZ KAMATA</span>
-                  <Sparkles className="h-6 w-6 text-pius" />
-                </div>
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div className="text-center">
-                    <div className="font-bold text-pius">400€</div>
-                    <div className="text-gray-400">prva rata</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-white">500€</div>
-                    <div className="text-gray-400">do 01.11.</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-white">900€</div>
-                    <div className="text-gray-400">do 01.12.</div>
-                  </div>
-                </div>
+            {/* Package Cards */}
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-12 w-12 text-pius animate-spin" />
               </div>
-            </motion.div>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto mb-8">
+                {packages.map((pkg) => (
+                  <motion.div
+                    key={pkg.id}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="bg-gradient-to-br from-gray-900 to-black border border-pius/30 rounded-3xl p-8"
+                  >
+                    <h3 className="text-2xl font-bold text-white mb-2">{pkg.name}</h3>
+                    {pkg.description && (
+                      <p className="text-gray-400 text-sm mb-4">{pkg.description}</p>
+                    )}
+                    
+                    <div className="text-5xl font-black text-pius mb-4">€{Number(pkg.price).toFixed(0)}</div>
 
-            {/* CTA */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/registracija')}
-              className="bg-gradient-to-r from-pius to-pius-dark text-black px-8 py-4 rounded-full text-lg font-bold hover:shadow-2xl transition-all duration-300 min-w-[280px]"
-            >
-              PRIJAVI SE SADA
-            </motion.button>
+                    {pkg.installments && pkg.installments.length > 0 && (
+                      <div className="bg-pius/10 border border-pius/50 rounded-2xl p-6 mb-6">
+                        <div className="flex items-center justify-center gap-2 mb-3">
+                          <Sparkles className="h-5 w-5 text-pius" />
+                          <span className="text-pius font-bold">RATE BEZ KAMATA</span>
+                          <Sparkles className="h-5 w-5 text-pius" />
+                        </div>
+                        <div className="space-y-2 text-sm">
+                          {pkg.installments.map((inst) => (
+                            <div key={inst.id} className="flex justify-between">
+                              <span className="text-gray-400">
+                                {inst.installment_number === 1 ? 'Prva rata' : `${inst.installment_number}. rata`}
+                                {inst.due_description && ` (${inst.due_description})`}:
+                              </span>
+                              <span className={`font-bold ${inst.installment_number === 1 ? 'text-pius' : 'text-white'}`}>
+                                €{Number(inst.amount).toFixed(0)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => navigate('/registracija')}
+                      className="w-full bg-gradient-to-r from-pius to-pius-dark text-black px-6 py-3 rounded-full font-bold hover:shadow-2xl transition-all duration-300"
+                    >
+                      PRIJAVI SE SADA
+                    </motion.button>
+                  </motion.div>
+                ))}
+              </div>
+            )}
 
             <div className="flex items-center justify-center gap-2 text-pius mt-4">
               <Clock className="h-5 w-5" />

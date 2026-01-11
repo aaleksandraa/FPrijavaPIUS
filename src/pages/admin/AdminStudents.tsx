@@ -29,7 +29,11 @@ export default function AdminStudents() {
   };
 
   const getPackagePrice = (student: Student): number => {
-    return student.package?.discount_price || student.package?.price || 0;
+    if (!student.package) return 0;
+    const price = student.package.discount_price || student.package.price;
+    // Ensure we always return a valid number
+    const numPrice = typeof price === 'number' ? price : parseFloat(String(price || '0'));
+    return isNaN(numPrice) ? 0 : numPrice;
   };
 
   const getPackageInstallments = (student: Student) => {

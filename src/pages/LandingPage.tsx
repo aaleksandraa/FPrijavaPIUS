@@ -84,7 +84,16 @@ export default function LandingPage() {
                       <p className="text-gray-400 text-sm mb-4">{pkg.description}</p>
                     )}
                     
-                    <div className="text-5xl font-black text-pius mb-4">€{Number(pkg.price).toFixed(0)}</div>
+                    <div className="mb-4">
+                      {pkg.discount_price ? (
+                        <div className="flex items-center justify-center gap-3">
+                          <span className="text-2xl font-bold text-gray-500 line-through">€{Number(pkg.price).toFixed(0)}</span>
+                          <span className="text-5xl font-black text-pius">€{Number(pkg.discount_price).toFixed(0)}</span>
+                        </div>
+                      ) : (
+                        <div className="text-5xl font-black text-pius">€{Number(pkg.price).toFixed(0)}</div>
+                      )}
+                    </div>
 
                     {pkg.installments && pkg.installments.length > 0 && (
                       <div className="bg-pius/10 border border-pius/50 rounded-2xl p-6 mb-6">

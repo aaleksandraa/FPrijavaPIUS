@@ -51,7 +51,19 @@ export default function CourseRegistrationPage() {
       // If has contract, create contract
       if (pkg.has_contract && signatureRef.current) {
         const signatureData = signatureRef.current.toDataURL();
-        let contractContent = pkg.contract_template || '';
+        
+        // Use appropriate template based on entity type
+        const template = formData.entity_type === 'company' 
+          ? pkg.contract_template_company 
+          : pkg.contract_template_individual;
+        
+        if (!template) {
+          console.error('Contract template not found for entity type:', formData.entity_type);
+          alert('Ugovor nije definisan za ovaj tip lica. Molimo kontaktirajte administratora.');
+          return;
+        }
+        
+        let contractContent = template;
         contractContent = contractContent
           .replace(/{ime}/g, formData.first_name)
           .replace(/{prezime}/g, formData.last_name)
@@ -112,7 +124,16 @@ export default function CourseRegistrationPage() {
           <div className="text-center">
             <h1 className="text-3xl font-bold text-pius mb-2">{pkg.name}</h1>
             {pkg.description && <p className="text-gray-400 mb-4">{pkg.description}</p>}
-            <p className="text-2xl font-bold text-white">€{Number(pkg.price).toFixed(2)}</p>
+            <div className="mb-2">
+              {pkg.discount_price ? (
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-lg font-bold text-gray-500 line-through">€{Number(pkg.price).toFixed(2)}</span>
+                  <span className="text-2xl font-bold text-white">€{Number(pkg.discount_price).toFixed(2)}</span>
+                </div>
+              ) : (
+                <p className="text-2xl font-bold text-white">€{Number(pkg.price).toFixed(2)}</p>
+              )}
+            </div>
             {pkg.payment_type === 'installments' && <p className="text-sm text-gray-400">Plaćanje na rate</p>}
           </div>
 
@@ -271,7 +292,14 @@ export default function CourseRegistrationPage() {
               </div>
               <div className="flex justify-between items-center mt-2">
                 <span className="text-gray-400">Cijena:</span>
-                <span className="text-pius font-bold text-xl">€{Number(pkg.price).toFixed(2)}</span>
+                {pkg.discount_price ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500 line-through">€{Number(pkg.price).toFixed(2)}</span>
+                    <span className="text-pius font-bold text-xl">€{Number(pkg.discount_price).toFixed(2)}</span>
+                  </div>
+                ) : (
+                  <span className="text-pius font-bold text-xl">€{Number(pkg.price).toFixed(2)}</span>
+                )}
               </div>
             </div>
 
@@ -303,18 +331,28 @@ export default function CourseRegistrationPage() {
             <h3 className="text-lg font-semibold text-pius flex items-center gap-2"><FileText className="h-5 w-5" />Ugovor</h3>
 
             <div className="bg-gray-800 rounded-lg p-4 max-h-60 overflow-y-auto text-sm text-gray-300 whitespace-pre-wrap">
-              {(pkg.contract_template || 'Tekst ugovora nije definisan.')
-                .replace(/{ime}/g, formData.first_name)
-                .replace(/{prezime}/g, formData.last_name)
-                .replace(/{email}/g, formData.email)
-                .replace(/{adresa}/g, formData.address)
-                .replace(/{postanskiBroj}/g, formData.postal_code)
-                .replace(/{mjesto}/g, formData.city)
-                .replace(/{grad}/g, formData.city)
-                .replace(/{drzava}/g, formData.country)
-                .replace(/{brojLicnogDokumenta}/g, formData.id_document_number)
-                .replace(/{cijena}/g, `€${Number(pkg.price).toFixed(2)}`)
-                .replace(/{datum}/g, new Date().toLocaleDateString('de-AT'))}
+              {(() => {
+                const template = formData.entity_type === 'company' 
+                  ? pkg.contract_template_company 
+                  : pkg.contract_template_individual;
+                
+                if (!template) {
+                  return 'Tekst ugovora nije definisan za ovaj tip lica.';
+                }
+                
+                return template
+                  .replace(/{ime}/g, formData.first_name)
+                  .replace(/{prezime}/g, formData.last_name)
+                  .replace(/{email}/g, formData.email)
+                  .replace(/{adresa}/g, formData.address)
+                  .replace(/{postanskiBroj}/g, formData.postal_code)
+                  .replace(/{mjesto}/g, formData.city)
+                  .replace(/{grad}/g, formData.city)
+                  .replace(/{drzava}/g, formData.country)
+                  .replace(/{brojLicnogDokumenta}/g, formData.id_document_number)
+                  .replace(/{cijena}/g, `€${Number(pkg.price).toFixed(2)}`)
+                  .replace(/{datum}/g, new Date().toLocaleDateString('de-AT'));
+              })()}
             </div>
 
             <div>

@@ -174,24 +174,32 @@ export default function AdminPackages() {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Cijena (€) *</label>
-          <input type="number" value={pkg.price || ''} onChange={(e) => setFn({ ...pkg, price: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
+          <label className="block text-sm font-medium text-gray-300 mb-2">Redovna cijena (€) *</label>
+          <input type="number" step="0.01" value={pkg.price || ''} onChange={(e) => setFn({ ...pkg, price: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Cijena na popustu (€)</label>
+          <input type="number" step="0.01" value={pkg.discount_price || ''} onChange={(e) => setFn({ ...pkg, discount_price: e.target.value ? parseFloat(e.target.value) : undefined })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" placeholder="Opciono - ostavi prazno ako nema popusta" />
+          <p className="text-xs text-gray-500 mt-1">Ako je popunjena, prikazuje se prekrizena redovna cijena</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">Trajanje (dani)</label>
           <input type="number" value={pkg.duration_days || 60} onChange={(e) => setFn({ ...pkg, duration_days: parseInt(e.target.value) || 60 })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">URL slike (opciono)</label>
+          <input type="text" value={pkg.image_url || ''} onChange={(e) => setFn({ ...pkg, image_url: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" placeholder="https://example.com/slika.jpg" />
+        </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">URL slike (opciono)</label>
-        <input type="text" value={pkg.image_url || ''} onChange={(e) => setFn({ ...pkg, image_url: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" placeholder="https://example.com/slika.jpg" />
-        {pkg.image_url && (
-          <div className="mt-2">
-            <img src={pkg.image_url} alt="Preview" className="h-20 w-auto rounded-lg object-cover" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
-          </div>
-        )}
-      </div>
+      {pkg.image_url && (
+        <div>
+          <img src={pkg.image_url} alt="Preview" className="h-20 w-auto rounded-lg object-cover" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
+        </div>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-2">Tip plaćanja *</label>

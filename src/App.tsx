@@ -48,6 +48,7 @@ function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/upis" element={<UpisLandingPage />} />
+      <Route path="/upis/:slug" element={<CourseRegistrationPage />} />
       <Route path="/registracija" element={<RegistrationPage />} />
       <Route path="/ugovor" element={<ContractPage />} />
       <Route path="/hvala" element={<ThankYouPage />} />

@@ -59,6 +59,7 @@ export interface Package {
   name: string;
   slug: string;
   price: number;
+  discount_price?: number;
   payment_type: 'installments' | 'fixed';
   description?: string;
   image_url?: string;

@@ -239,7 +239,16 @@ export default function RegistrationPage({ preselectedPackage }: Props) {
                             )}
                             <div className="text-center mb-4">
                               <h3 className="text-2xl font-bold text-white mb-1">{pkg.name}</h3>
-                              <div className="text-3xl font-black text-pius mb-1">€{Number(pkg.price).toFixed(0)}</div>
+                              <div className="mb-1">
+                                {pkg.discount_price ? (
+                                  <div className="flex items-center justify-center gap-2">
+                                    <span className="text-xl font-bold text-gray-500 line-through">€{Number(pkg.price).toFixed(0)}</span>
+                                    <span className="text-3xl font-black text-pius">€{Number(pkg.discount_price).toFixed(0)}</span>
+                                  </div>
+                                ) : (
+                                  <div className="text-3xl font-black text-pius">€{Number(pkg.price).toFixed(0)}</div>
+                                )}
+                              </div>
                               {pkg.description && <p className="text-sm text-gray-400">{pkg.description}</p>}
                             </div>
                             {pkg.features && pkg.features.length > 0 && (

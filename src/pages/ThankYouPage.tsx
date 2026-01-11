@@ -11,12 +11,10 @@ export default function ThankYouPage() {
   const { isContract = false, package: selectedPackageSlug = '' } = location.state || {};
   
   const [packageData, setPackageData] = useState<Package | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadPackageData = async () => {
       if (!selectedPackageSlug) {
-        setLoading(false);
         return;
       }
       
@@ -26,8 +24,6 @@ export default function ThankYouPage() {
         setPackageData(pkg || null);
       } catch (err) {
         console.error('Failed to load package data:', err);
-      } finally {
-        setLoading(false);
       }
     };
     

@@ -67,7 +67,9 @@ export interface Package {
   has_contract: boolean;
   duration_days: number;
   features?: string[];
-  contract_template?: string;
+  contract_template?: string; // Deprecated - kept for backward compatibility
+  contract_template_individual?: string;
+  contract_template_company?: string;
   installments?: PackageInstallment[];
   created_at: string;
   updated_at: string;

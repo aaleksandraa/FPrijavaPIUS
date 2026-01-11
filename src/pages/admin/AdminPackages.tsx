@@ -4,6 +4,9 @@ import { Package, Plus, Edit3, Trash2, X, Save, DollarSign, Calendar, CheckCircl
 import { getPackages, createPackage, updatePackage, deletePackage } from '../../lib/api';
 import type { Package as PackageType, PackageInstallment } from '../../types';
 
+// Extended type for form data that includes all fields
+type PackageFormData = Omit<PackageType, 'id' | 'created_at' | 'updated_at'>;
+
 export default function AdminPackages() {
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,7 +18,7 @@ export default function AdminPackages() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [forceDelete, setForceDelete] = useState(false);
 
-  const emptyPackage: Partial<PackageType> = {
+  const emptyPackage: Partial<PackageFormData> = {
     name: '',
     slug: '',
     price: 0,
@@ -31,7 +34,7 @@ export default function AdminPackages() {
     installments: [],
   };
 
-  const [newPackage, setNewPackage] = useState<Partial<PackageType>>(emptyPackage);
+  const [newPackage, setNewPackage] = useState<Partial<PackageFormData>>(emptyPackage);
   const [newFeature, setNewFeature] = useState('');
 
   useEffect(() => {

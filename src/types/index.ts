@@ -91,6 +91,7 @@ export interface Invoice {
   id: string;
   student_id: string;
   invoice_number: string;
+  is_custom_number?: boolean;
   invoice_date: string;
   payment_date?: string;
   description: string;

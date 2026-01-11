@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Filter, Download, Mail, Phone, User, Building, Calendar, X, Eye, MapPin, CreditCard, FileText, CheckCircle, Clock, Trash2, Ban, Edit } from 'lucide-react';
+import { Search, Filter, Download, Mail, Phone, User, Building, Calendar, X, Eye, MapPin, CreditCard, FileText, CheckCircle, Clock, Trash2, Ban, Edit, Plus } from 'lucide-react';
 import { getStudents, getContracts, downloadContractPdf, updateStudent, deleteStudent } from '../../lib/api';
 import { generateStudentPDF } from '../../lib/pdfGenerator';
 import AddStudentModal from '../../components/AddStudentModal';
 import EditStudentModal from '../../components/EditStudentModal';
+import AddManualPaymentModal from '../../components/AddManualPaymentModal';
 import type { Student, Contract } from '../../types';
 
 export default function AdminStudents() {
@@ -21,7 +22,9 @@ export default function AdminStudents() {
   const [studentToCancel, setStudentToCancel] = useState<Student | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [studentToEdit, setStudentToEdit] = useState<Student | null>(null);
+  const [studentForPayment, setStudentForPayment] = useState<Student | null>(null);
 
   // Helper functions for package info
   const getPackageName = (student: Student): string => {
@@ -565,9 +568,21 @@ export default function AdminStudents() {
                 {/* Payment History - Invoices */}
                 {selectedStudent.invoices && selectedStudent.invoices.length > 0 && (
                   <div className="bg-gray-800/50 rounded-xl p-4">
-                    <h3 className="text-sm font-semibold text-pius mb-3 flex items-center gap-2">
-                      <FileText className="h-4 w-4" /> Historija uplata
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-pius flex items-center gap-2">
+                        <FileText className="h-4 w-4" /> Historija uplata
+                      </h3>
+                      <button
+                        onClick={() => {
+                          setStudentForPayment(selectedStudent);
+                          setShowAddPaymentModal(true);
+                        }}
+                        className="text-xs px-3 py-1.5 bg-pius/20 hover:bg-pius/30 text-pius border border-pius/50 rounded-lg font-medium transition-colors flex items-center gap-1"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Dodaj plaćanje
+                      </button>
+                    </div>
                     <div className="space-y-3">
                       {selectedStudent.invoices
                         .sort((a, b) => (a.installment_number || 0) - (b.installment_number || 0))
@@ -645,9 +660,21 @@ export default function AdminStudents() {
                 {/* No Invoices Message */}
                 {(!selectedStudent.invoices || selectedStudent.invoices.length === 0) && selectedStudent.payment_method === 'installments' && (
                   <div className="bg-gray-800/50 rounded-xl p-4">
-                    <h3 className="text-sm font-semibold text-pius mb-3 flex items-center gap-2">
-                      <FileText className="h-4 w-4" /> Historija uplata
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-pius flex items-center gap-2">
+                        <FileText className="h-4 w-4" /> Historija uplata
+                      </h3>
+                      <button
+                        onClick={() => {
+                          setStudentForPayment(selectedStudent);
+                          setShowAddPaymentModal(true);
+                        }}
+                        className="text-xs px-3 py-1.5 bg-pius/20 hover:bg-pius/30 text-pius border border-pius/50 rounded-lg font-medium transition-colors flex items-center gap-1"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Dodaj plaćanje
+                      </button>
+                    </div>
                     <p className="text-gray-400 text-sm text-center py-4">
                       Nema evidentiranih uplata za ovog studenta.
                     </p>
@@ -821,6 +848,19 @@ export default function AdminStudents() {
         onSuccess={() => {
           loadData();
           setSelectedStudent(null);
+        }}
+      />
+
+      {/* Add Manual Payment Modal */}
+      <AddManualPaymentModal
+        isOpen={showAddPaymentModal}
+        student={studentForPayment!}
+        onClose={() => {
+          setShowAddPaymentModal(false);
+          setStudentForPayment(null);
+        }}
+        onSuccess={() => {
+          loadData();
         }}
       />
     </motion.div>

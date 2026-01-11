@@ -26,6 +26,7 @@ export interface Student {
   contracts?: Contract[];
   invoices?: Invoice[];
   payments?: Payment[];
+  package?: Package; // Added package relationship
   paid_installments_count?: number;
   total_installments?: number;
   payment_status?: string;

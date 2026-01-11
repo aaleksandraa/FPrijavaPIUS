@@ -23,6 +23,19 @@ export default function AdminStudents() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [studentToEdit, setStudentToEdit] = useState<Student | null>(null);
 
+  // Helper functions for package info
+  const getPackageName = (student: Student): string => {
+    return student.package?.name || student.package_type.toUpperCase().replace('-', ' ');
+  };
+
+  const getPackagePrice = (student: Student): number => {
+    return student.package?.discount_price || student.package?.price || 0;
+  };
+
+  const getPackageInstallments = (student: Student) => {
+    return student.package?.installments || [];
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -60,8 +73,8 @@ export default function AdminStudents() {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        const pkg = student.package_type === 'pius-plus' ? 'PIUS_PLUS' : 'PIUS_PRO';
-        link.download = `${pkg}_${student.first_name}_${student.last_name}_${new Date().toISOString().split('T')[0]}.pdf`;
+        const pkgName = getPackageName(student).replace(/\s+/g, '_').toUpperCase();
+        link.download = `${pkgName}_${student.first_name}_${student.last_name}_${new Date().toISOString().split('T')[0]}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -229,7 +242,7 @@ export default function AdminStudents() {
                           {student.first_name} {student.last_name}
                         </div>
                         <div className="text-sm text-gray-400">
-                          {student.package_type === 'pius-plus' ? 'PIUS PLUS' : 'PIUS PRO'}
+                          {getPackageName(student)}
                         </div>
                       </div>
                     </div>
@@ -375,7 +388,7 @@ export default function AdminStudents() {
                       {selectedStudent.first_name} {selectedStudent.last_name}
                     </h2>
                     <p className="text-sm text-gray-400">
-                      {selectedStudent.package_type === 'pius-plus' ? 'PIUS PLUS' : 'PIUS PRO'} •
+                      {getPackageName(selectedStudent)} •
                       {selectedStudent.entity_type === 'individual' ? ' Fizičko lice' : ' Pravno lice'}
                     </p>
                   </div>
@@ -513,7 +526,7 @@ export default function AdminStudents() {
                     <div>
                       <p className="text-xs text-gray-500 mb-1">Paket</p>
                       <p className="text-white font-semibold">
-                        {selectedStudent.package_type === 'pius-plus' ? 'PIUS PLUS - 1.800€' : 'PIUS PRO - 2.500€'}
+                        {getPackageName(selectedStudent)} - €{getPackagePrice(selectedStudent).toFixed(2)}
                       </p>
                     </div>
                     <div>
@@ -528,36 +541,17 @@ export default function AdminStudents() {
                     <div className="mt-4 pt-4 border-t border-gray-700">
                       <p className="text-xs text-gray-500 mb-2">Plan rata</p>
                       <div className="space-y-2 text-sm">
-                        {selectedStudent.package_type === 'pius-plus' ? (
-                          <>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">1. rata (24h od potpisa):</span>
-                              <span className="text-white">400€</span>
+                        {getPackageInstallments(selectedStudent).length > 0 ? (
+                          getPackageInstallments(selectedStudent).map((installment) => (
+                            <div key={installment.id} className="flex justify-between">
+                              <span className="text-gray-400">
+                                {installment.installment_number}. rata ({installment.due_description}):
+                              </span>
+                              <span className="text-white">€{Number(installment.amount).toFixed(2)}</span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">2. rata (do 01.11.2025):</span>
-                              <span className="text-white">500€</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">3. rata (do 01.12.2025):</span>
-                              <span className="text-white">900€</span>
-                            </div>
-                          </>
+                          ))
                         ) : (
-                          <>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">1. rata (24h od potpisa):</span>
-                              <span className="text-white">500€</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">2. rata (do 01.11.2025):</span>
-                              <span className="text-white">1.000€</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">3. rata (do 01.12.2025):</span>
-                              <span className="text-white">1.000€</span>
-                            </div>
-                          </>
+                          <p className="text-gray-400 text-sm">Nema definisanih rata za ovaj paket</p>
                         )}
                       </div>
                     </div>
@@ -617,7 +611,7 @@ export default function AdminStudents() {
                     {/* Payment Summary */}
                     <div className="mt-4 pt-4 border-t border-gray-700">
                       {(() => {
-                        const totalPackagePrice = selectedStudent.package_type === 'pius-plus' ? 1800 : 2500;
+                        const totalPackagePrice = getPackagePrice(selectedStudent);
                         const paidAmount = selectedStudent.invoices
                           .filter(inv => inv.status === 'paid')
                           .reduce((sum, inv) => sum + Number(inv.total_amount), 0);

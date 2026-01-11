@@ -123,7 +123,11 @@ export default function CourseRegistrationPage() {
 
           <div className="text-center">
             <h1 className="text-3xl font-bold text-pius mb-2">{pkg.name}</h1>
-            {pkg.description && <p className="text-gray-400 mb-4">{pkg.description}</p>}
+            {pkg.description && (
+              <div className="text-gray-400 mb-4 whitespace-pre-line text-left max-w-2xl mx-auto">
+                {pkg.description}
+              </div>
+            )}
             <div className="mb-2">
               {pkg.discount_price ? (
                 <div className="flex items-center justify-center gap-2">

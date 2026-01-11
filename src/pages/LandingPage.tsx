@@ -81,7 +81,9 @@ export default function LandingPage() {
                   >
                     <h3 className="text-2xl font-bold text-white mb-2">{pkg.name}</h3>
                     {pkg.description && (
-                      <p className="text-gray-400 text-sm mb-4">{pkg.description}</p>
+                      <div className="text-gray-400 text-sm mb-4 whitespace-pre-line text-left">
+                        {pkg.description}
+                      </div>
                     )}
                     
                     <div className="mb-4">

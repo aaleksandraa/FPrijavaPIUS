@@ -249,7 +249,11 @@ export default function RegistrationPage({ preselectedPackage }: Props) {
                                   <div className="text-3xl font-black text-pius">€{Number(pkg.price).toFixed(0)}</div>
                                 )}
                               </div>
-                              {pkg.description && <p className="text-sm text-gray-400">{pkg.description}</p>}
+                              {pkg.description && (
+                                <div className="text-sm text-gray-400 whitespace-pre-line text-left max-w-md mx-auto">
+                                  {pkg.description}
+                                </div>
+                              )}
                             </div>
                             {pkg.features && pkg.features.length > 0 && (
                               <div className="border-t border-gray-700 pt-4 mt-4">

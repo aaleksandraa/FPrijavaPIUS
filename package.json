@@ -8,6 +8,14 @@
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
+  "browserslist": [
+    "> 0.5%",
+    "last 2 versions",
+    "Firefox ESR",
+    "not dead",
+    "iOS >= 10",
+    "Android >= 5"
+  ],
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
     "axios": "^1.6.0",

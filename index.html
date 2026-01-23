@@ -4,10 +4,27 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#d9a078" />
+    <meta name="description" content="PIUS Academy - Profesionalna obuka za manikir, pedikir i trajnu šminku" />
+    
+    <!-- Polyfills for older browsers -->
+    <script>
+      // Check if browser supports modern features
+      if (!window.Promise || !window.fetch || !Array.prototype.includes) {
+        document.write('<script src="https://polyfill.io/v3/polyfill.min.js?features=default,Promise,fetch,Array.prototype.includes,Object.assign,Symbol"><\/script>');
+      }
+    </script>
+    
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <title>PIUS Academy</title>
   </head>
   <body>
+    <noscript>
+      <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+        <h1>JavaScript je potreban</h1>
+        <p>Molimo omogućite JavaScript u vašem browseru da biste koristili ovu stranicu.</p>
+      </div>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

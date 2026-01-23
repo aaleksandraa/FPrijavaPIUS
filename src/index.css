@@ -6,6 +6,24 @@ body {
   font-family: 'Poppins', sans-serif;
 }
 
+/* iOS touch optimization */
+button, a, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+/* Prevent double-tap zoom on buttons */
+button {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Ensure links work properly on iOS */
+a {
+  -webkit-touch-callout: none;
+}
+
 .signature-canvas {
   touch-action: none;
 }

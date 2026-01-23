@@ -13,16 +13,41 @@ export default function LandingPage() {
   useEffect(() => {
     const loadPackages = async () => {
       try {
+        console.log('Loading packages from API...');
         const res = await getPackages();
+        console.log('API Response:', res);
+        console.log('Packages data:', res.data);
+        
+        // Check if data exists and is array
+        if (!res.data || !Array.isArray(res.data)) {
+          console.error('Invalid response format:', res);
+          setPackages([]);
+          setLoading(false);
+          return;
+        }
+        
         // Filter only PIUS packages with installments
-        const piusPackages = res.data.filter((p: Package) => 
-          p.payment_type === 'installments' && p.slug.startsWith('pius')
-        );
+        const piusPackages = res.data.filter((p: Package) => {
+          const isPius = p.slug.toLowerCase().includes('pius');
+          const hasInstallments = p.payment_type === 'installments';
+          console.log(`Package ${p.name} (${p.slug}): isPius=${isPius}, hasInstallments=${hasInstallments}`);
+          return hasInstallments && isPius;
+        });
+        
+        console.log('Filtered PIUS packages:', piusPackages);
+        
         // Sort by price
         piusPackages.sort((a: Package, b: Package) => Number(a.price) - Number(b.price));
         setPackages(piusPackages);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to load packages:', err);
+        console.error('Error details:', {
+          message: err.message,
+          response: err.response,
+          status: err.response?.status,
+          data: err.response?.data
+        });
+        setPackages([]);
       } finally {
         setLoading(false);
       }
@@ -68,6 +93,18 @@ export default function LandingPage() {
             {loading ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="h-12 w-12 text-pius animate-spin" />
+              </div>
+            ) : packages.length === 0 ? (
+              <div className="bg-red-900/20 border border-red-700 rounded-xl p-8 max-w-2xl mx-auto">
+                <p className="text-red-400 text-lg mb-2">⚠️ Paketi se nisu učitali</p>
+                <p className="text-gray-400 text-sm">Molimo osvježite stranicu ili kontaktirajte podršku.</p>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="mt-4 px-6 py-2 bg-pius text-black rounded-lg font-bold hover:bg-pius-dark transition-colors"
+                >
+                  Osvježi stranicu
+                </button>
               </div>
             ) : (
               <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto mb-8">
@@ -121,6 +158,7 @@ export default function LandingPage() {
                     )}
 
                     <motion.button
+                      type="button"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => navigate('/registracija')}
@@ -132,7 +170,6 @@ export default function LandingPage() {
                 ))}
               </div>
             )}
-
             <div className="flex items-center justify-center gap-2 text-pius mt-4">
               <Clock className="h-5 w-5" />
               <span className="text-sm">Ograničen broj mjesta!</span>
@@ -219,6 +256,7 @@ export default function LandingPage() {
           </div>
 
           <motion.button
+            type="button"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => navigate('/registracija')}

@@ -9,49 +9,168 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>('');
+  const [usingCache, setUsingCache] = useState(false);
 
   useEffect(() => {
     const loadPackages = async () => {
+      const CACHE_KEY = 'pius_packages_cache';
+      const CACHE_TIMESTAMP_KEY = 'pius_packages_cache_timestamp';
+      const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+      const maxRetries = 5; // Increased from 3 to 5
+      let attempt = 0;
+      
+      // Try to load from cache first
       try {
-        console.log('Loading packages from API...');
-        const res = await getPackages();
-        console.log('API Response:', res);
-        console.log('Packages data:', res.data);
+        const cachedData = localStorage.getItem(CACHE_KEY);
+        const cachedTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
         
-        // Check if data exists and is array
-        if (!res.data || !Array.isArray(res.data)) {
-          console.error('Invalid response format:', res);
-          setPackages([]);
-          setLoading(false);
-          return;
+        if (cachedData && cachedTimestamp) {
+          const age = Date.now() - parseInt(cachedTimestamp);
+          if (age < CACHE_DURATION) {
+            console.log('✅ Loading packages from cache (age: ' + Math.round(age / 1000) + 's)');
+            const cached = JSON.parse(cachedData);
+            setPackages(cached);
+            setUsingCache(true);
+            setLoading(false);
+            // Continue loading from API in background to update cache
+          }
         }
-        
-        // Filter only PIUS packages with installments
-        const piusPackages = res.data.filter((p: Package) => {
-          const isPius = p.slug.toLowerCase().includes('pius');
-          const hasInstallments = p.payment_type === 'installments';
-          console.log(`Package ${p.name} (${p.slug}): isPius=${isPius}, hasInstallments=${hasInstallments}`);
-          return hasInstallments && isPius;
-        });
-        
-        console.log('Filtered PIUS packages:', piusPackages);
-        
-        // Sort by price
-        piusPackages.sort((a: Package, b: Package) => Number(a.price) - Number(b.price));
-        setPackages(piusPackages);
-      } catch (err: any) {
-        console.error('Failed to load packages:', err);
-        console.error('Error details:', {
-          message: err.message,
-          response: err.response,
-          status: err.response?.status,
-          data: err.response?.data
-        });
-        setPackages([]);
-      } finally {
-        setLoading(false);
+      } catch (err) {
+        console.warn('Failed to load from cache:', err);
+      }
+      
+      // Load from API with retry logic
+      while (attempt < maxRetries) {
+        try {
+          attempt++;
+          const delay = Math.min(1000 * Math.pow(1.5, attempt - 1), 5000); // Exponential backoff
+          
+          if (attempt > 1) {
+            console.log(`⏳ Waiting ${Math.round(delay / 1000)}s before attempt ${attempt}/${maxRetries}...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+          
+          console.log(`🔄 [Attempt ${attempt}/${maxRetries}] Loading packages from API...`);
+          
+          const res = await getPackages();
+          console.log('✅ API Response:', res.status);
+          
+          // Collect debug info
+          const debug = {
+            timestamp: new Date().toISOString(),
+            attempt: attempt,
+            maxRetries: maxRetries,
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+            online: navigator.onLine,
+            url: window.location.href,
+            apiResponse: res.status,
+            dataType: typeof res.data,
+            isArray: Array.isArray(res.data),
+            dataLength: Array.isArray(res.data) ? res.data.length : 0,
+            usingCache: usingCache,
+          };
+          setDebugInfo(JSON.stringify(debug, null, 2));
+          
+          // Check if data exists and is array
+          if (!res.data || !Array.isArray(res.data)) {
+            console.error('❌ Invalid response format:', res);
+            
+            // Retry if not last attempt
+            if (attempt < maxRetries) {
+              continue;
+            }
+            
+            // Last attempt - show error
+            console.error('❌ All attempts failed - invalid response format');
+            setError('Nevažeći format podataka sa servera');
+            setPackages([]);
+            setLoading(false);
+            return;
+          }
+          
+          // Filter only PIUS packages with installments
+          const piusPackages = res.data.filter((p: Package) => {
+            const isPius = p.slug.toLowerCase().includes('pius');
+            const hasInstallments = p.payment_type === 'installments';
+            return hasInstallments && isPius;
+          });
+          
+          console.log(`✅ Filtered ${piusPackages.length} PIUS packages`);
+          
+          if (piusPackages.length === 0) {
+            // Retry if not last attempt
+            if (attempt < maxRetries) {
+              console.warn(`⚠️ No packages found, retrying...`);
+              continue;
+            }
+            
+            // Last attempt - show error
+            console.error('❌ All attempts failed - no packages found');
+            setError('Trenutno nema dostupnih paketa. Molimo kontaktirajte podršku.');
+            setPackages([]);
+            setLoading(false);
+            return;
+          }
+          
+          // Sort by price
+          piusPackages.sort((a: Package, b: Package) => Number(a.price) - Number(b.price));
+          
+          // Save to cache
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(piusPackages));
+            localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+            console.log('💾 Saved to cache');
+          } catch (err) {
+            console.warn('Failed to save to cache:', err);
+          }
+          
+          setPackages(piusPackages);
+          setUsingCache(false);
+          setLoading(false);
+          setError(null);
+          console.log('🎉 Packages loaded successfully!');
+          return; // Success, exit loop
+          
+        } catch (err: any) {
+          console.error(`❌ [Attempt ${attempt}/${maxRetries}] Failed:`, err.message);
+          
+          // Collect error debug info
+          const errorDebug = {
+            timestamp: new Date().toISOString(),
+            attempt: attempt,
+            maxRetries: maxRetries,
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+            online: navigator.onLine,
+            url: window.location.href,
+            errorMessage: err.message,
+            errorStatus: err.response?.status,
+            errorData: err.response?.data,
+            usingCache: usingCache,
+          };
+          setDebugInfo(JSON.stringify(errorDebug, null, 2));
+          
+          // Retry if not last attempt
+          if (attempt < maxRetries) {
+            continue;
+          }
+          
+          // Last attempt failed - show error if no cache
+          if (!usingCache) {
+            console.error('❌ All attempts failed - showing error screen');
+            setError(`Greška pri učitavanju (${attempt} pokušaja): ${err.message}`);
+            setPackages([]);
+          }
+          setLoading(false);
+        }
       }
     };
+    
     loadPackages();
   }, []);
 
@@ -97,14 +216,61 @@ export default function LandingPage() {
             ) : packages.length === 0 ? (
               <div className="bg-red-900/20 border border-red-700 rounded-xl p-8 max-w-2xl mx-auto">
                 <p className="text-red-400 text-lg mb-2">⚠️ Paketi se nisu učitali</p>
-                <p className="text-gray-400 text-sm">Molimo osvježite stranicu ili kontaktirajte podršku.</p>
-                <button
-                  type="button"
-                  onClick={() => window.location.reload()}
-                  className="mt-4 px-6 py-2 bg-pius text-black rounded-lg font-bold hover:bg-pius-dark transition-colors"
-                >
-                  Osvježi stranicu
-                </button>
+                <p className="text-gray-400 text-sm mb-4">
+                  {error || 'Molimo osvježite stranicu ili kontaktirajte podršku.'}
+                </p>
+                
+                {/* Quick API Test Link */}
+                <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-4 mb-4">
+                  <p className="text-yellow-400 text-sm mb-2">🔍 Brzi test:</p>
+                  <a
+                    href="https://api.prijava.pius-academy.com/api/packages"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-pius underline text-sm hover:text-pius-dark"
+                  >
+                    Kliknite ovdje da testirate API direktno
+                  </a>
+                  <p className="text-gray-400 text-xs mt-2">
+                    Ako vidite JSON podatke, problem je u browseru. Ako ne vidite ništa, problem je na serveru.
+                  </p>
+                </div>
+                
+                {/* Debug Info for User to Send */}
+                <details className="mt-4 bg-black/50 rounded-lg p-4">
+                  <summary className="cursor-pointer text-pius font-semibold mb-2">
+                    📋 Kliknite ovdje za tehničke detalje (pošaljite ovo podršci)
+                  </summary>
+                  <pre className="text-xs text-gray-300 overflow-auto max-h-60 mt-2 p-2 bg-gray-900 rounded">
+{debugInfo || 'Nema dostupnih informacija'}
+                  </pre>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(debugInfo);
+                      alert('Kopirano! Možete poslati ovo na info@pius-academy.com');
+                    }}
+                    className="mt-2 px-4 py-2 bg-pius text-black rounded-lg text-sm font-bold hover:bg-pius-dark transition-colors"
+                  >
+                    �  Kopiraj detalje
+                  </button>
+                </details>
+                
+                <div className="flex gap-4 justify-center mt-6">
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="px-6 py-2 bg-pius text-black rounded-lg font-bold hover:bg-pius-dark transition-colors"
+                  >
+                    🔄 Osvježi stranicu
+                  </button>
+                  <a
+                    href="mailto:info@pius-academy.com?subject=Problem sa učitavanjem paketa&body=Molimo vas da riješite problem. Tehničke informacije:%0A%0A"
+                    className="px-6 py-2 bg-gray-700 text-white rounded-lg font-bold hover:bg-gray-600 transition-colors"
+                  >
+                    📧 Kontaktiraj podršku
+                  </a>
+                </div>
               </div>
             ) : (
               <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto mb-8">
@@ -170,6 +336,23 @@ export default function LandingPage() {
                 ))}
               </div>
             )}
+            
+            {/* Cache/Error Indicator */}
+            {(usingCache || error) && packages.length > 0 && (
+              <div className="mt-4 text-center">
+                {usingCache && (
+                  <p className="text-xs text-gray-500">
+                    💾 Učitano iz cache-a (ažurirano u pozadini)
+                  </p>
+                )}
+                {error && (
+                  <p className="text-xs text-yellow-500">
+                    ⚠️ {error}
+                  </p>
+                )}
+              </div>
+            )}
+            
             <div className="flex items-center justify-center gap-2 text-pius mt-4">
               <Clock className="h-5 w-5" />
               <span className="text-sm">Ograničen broj mjesta!</span>

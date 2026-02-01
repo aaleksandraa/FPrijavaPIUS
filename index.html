@@ -3,15 +3,62 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
     <meta name="theme-color" content="#d9a078" />
     <meta name="description" content="PIUS Academy - Profesionalna obuka za manikir, pedikir i trajnu šminku" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="format-detection" content="telephone=no" />
     
-    <!-- Polyfills for older browsers -->
+    <!-- Safari-specific meta tags -->
+    <meta name="apple-mobile-web-app-title" content="PIUS Academy" />
+    
+    <!-- Comprehensive polyfills for Safari/iOS -->
+    <script crossorigin="anonymous" src="https://polyfill.io/v3/polyfill.min.js?features=default%2CPromise%2Cfetch%2CArray.prototype.includes%2CArray.prototype.find%2CArray.prototype.findIndex%2CObject.assign%2CObject.entries%2CObject.values%2CSymbol%2CString.prototype.includes%2CNumber.isNaN%2CArray.from%2CArray.prototype.filter%2CArray.prototype.map"></script>
+    
+    <!-- Safari-specific fixes -->
     <script>
-      // Check if browser supports modern features
-      if (!window.Promise || !window.fetch || !Array.prototype.includes) {
-        document.write('<script src="https://polyfill.io/v3/polyfill.min.js?features=default,Promise,fetch,Array.prototype.includes,Object.assign,Symbol"><\/script>');
+      // Fix for Safari's passive event listener warning
+      (function() {
+        if (typeof EventTarget !== "undefined") {
+          let supportsPassive = false;
+          try {
+            const opts = Object.defineProperty({}, 'passive', {
+              get: function() { supportsPassive = true; }
+            });
+            window.addEventListener("test", null, opts);
+            window.removeEventListener("test", null, opts);
+          } catch (e) {}
+          
+          if (supportsPassive) {
+            const addEvent = EventTarget.prototype.addEventListener;
+            EventTarget.prototype.addEventListener = function(type, listener, options) {
+              const usesListenerOptions = typeof options === 'object' && options !== null;
+              const useCapture = usesListenerOptions ? options.capture : options;
+              
+              options = usesListenerOptions ? options : {};
+              options.passive = options.passive !== undefined ? options.passive : true;
+              options.capture = useCapture !== undefined ? useCapture : false;
+              
+              addEvent.call(this, type, listener, options);
+            };
+          }
+        }
+      })();
+      
+      // Fix for Safari's localStorage issues
+      try {
+        localStorage.setItem('test', 'test');
+        localStorage.removeItem('test');
+      } catch (e) {
+        console.warn('localStorage not available, using memory storage');
+        window.localStorage = {
+          _data: {},
+          setItem: function(id, val) { return this._data[id] = String(val); },
+          getItem: function(id) { return this._data.hasOwnProperty(id) ? this._data[id] : null; },
+          removeItem: function(id) { return delete this._data[id]; },
+          clear: function() { return this._data = {}; }
+        };
       }
     </script>
     

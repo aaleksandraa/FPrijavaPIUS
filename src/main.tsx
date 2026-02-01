@@ -4,6 +4,10 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
 import { preloadPackages } from './lib/preload'
+import { applySafariFixes } from './lib/safariDetect'
+
+// Apply Safari/iOS fixes immediately
+applySafariFixes();
 
 // Preload packages immediately
 preloadPackages();

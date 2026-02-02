@@ -291,7 +291,13 @@ export default function AdminStudents() {
                         {student.payment_status || '0/3'}
                       </span>
                     ) : (
-                      <span className="text-gray-500 text-xs">-</span>
+                      <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${
+                        student.paid_installments_count === 1
+                          ? 'bg-green-900/30 text-green-400 border border-green-700'
+                          : 'bg-red-900/30 text-red-400 border border-red-700'
+                      }`}>
+                        {student.paid_installments_count === 1 ? 'Plaćeno' : 'Nije plaćeno'}
+                      </span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -542,6 +548,18 @@ export default function AdminStudents() {
                         {selectedStudent.payment_method === 'full' ? 'Plaćanje u cjelosti' : 'Plaćanje na rate'}
                       </p>
                     </div>
+                    {selectedStudent.payment_method === 'full' && (
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Status plaćanja</p>
+                        <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${
+                          selectedStudent.paid_installments_count === 1
+                            ? 'bg-green-900/30 text-green-400 border border-green-700'
+                            : 'bg-red-900/30 text-red-400 border border-red-700'
+                        }`}>
+                          {selectedStudent.paid_installments_count === 1 ? 'Plaćeno' : 'Nije plaćeno'}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {selectedStudent.payment_method === 'installments' && (

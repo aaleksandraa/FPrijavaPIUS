@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { safeAPICall } from './runtimeErrorHandling';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'https://api.prijava.pius-academy.com/api',
@@ -10,24 +11,78 @@ const api = axios.create({
   timeout: 15000, // 15 seconds timeout
 });
 
-// Add token to requests
+// Log all requests for debugging
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('pius_admin_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  try {
+    console.log('🌐 Axios Request:', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      fullURL: (config.baseURL || '') + (config.url || ''),
+      headers: config.headers,
+      timeout: config.timeout,
+    });
+    
+    const token = safeAPICall(
+      () => localStorage.getItem('pius_admin_token'),
+      null,
+      'localStorage.getItem'
+    );
+    
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch (error) {
+    console.error('❌ Error in request interceptor:', error);
   }
+  
   return config;
 });
 
 // Handle 401 errors
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('pius_admin_token');
-      localStorage.removeItem('pius_admin_session');
-      window.location.href = '/?admin=true';
+  (response) => {
+    try {
+      console.log('✅ Axios Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.config.url,
+        dataType: typeof response.data,
+        dataLength: Array.isArray(response.data) ? response.data.length : 'N/A',
+      });
+    } catch (error) {
+      console.error('❌ Error logging response:', error);
     }
+    return response;
+  },
+  (error) => {
+    try {
+      console.error('❌ Axios Error:', {
+        message: error.message,
+        code: error.code,
+        url: error.config?.url,
+        baseURL: error.config?.baseURL,
+        fullURL: (error.config?.baseURL || '') + (error.config?.url || ''),
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        responseData: error.response?.data,
+      });
+      
+      if (error.response?.status === 401) {
+        safeAPICall(
+          () => {
+            localStorage.removeItem('pius_admin_token');
+            localStorage.removeItem('pius_admin_session');
+          },
+          undefined,
+          'localStorage.removeItem'
+        );
+        window.location.href = '/?admin=true';
+      }
+    } catch (handlingError) {
+      console.error('❌ Error in error handler:', handlingError);
+    }
+    
     return Promise.reject(error);
   }
 );

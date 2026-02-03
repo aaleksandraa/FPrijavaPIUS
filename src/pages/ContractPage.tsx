@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import SignatureCanvas from 'react-signature-canvas';
 import { ArrowLeft, FileText, Pen, Download, CheckCircle } from 'lucide-react';
@@ -9,7 +9,16 @@ import type { FormData } from '../types';
 export default function ContractPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { studentId, formData } = location.state as { studentId: string; formData: FormData } || {};
+  const [searchParams] = useSearchParams();
+  
+  // Try to get studentId from URL parameter first, then from state
+  const studentIdFromUrl = searchParams.get('studentId');
+  const { studentId: studentIdFromState, formData } = location.state as { studentId: string; formData: FormData } || {};
+  const studentId = studentIdFromUrl || studentIdFromState;
+
+  console.log('🔵 [DEBUG ContractPage] studentId from URL:', studentIdFromUrl);
+  console.log('🔵 [DEBUG ContractPage] studentId from state:', studentIdFromState);
+  console.log('🔵 [DEBUG ContractPage] Final studentId:', studentId);
 
   const [contractText, setContractText] = useState('');
   const [contractAccepted, setContractAccepted] = useState(false);
@@ -18,14 +27,23 @@ export default function ContractPage() {
   const signatureRef = useRef<SignatureCanvas>(null);
 
   useEffect(() => {
+    console.log('🔵 [DEBUG ContractPage] useEffect triggered, studentId:', studentId);
     if (!studentId) {
+      console.log('❌ [DEBUG ContractPage] No studentId, redirecting to /registracija');
       navigate('/registracija');
       return;
     }
 
+    console.log('🔵 [DEBUG ContractPage] Loading contract for studentId:', studentId);
     previewContract(studentId)
-      .then(res => setContractText(res.data.content))
-      .catch(() => setError('Greška pri učitavanju ugovora'));
+      .then(res => {
+        console.log('✅ [DEBUG ContractPage] Contract loaded successfully');
+        setContractText(res.data.content);
+      })
+      .catch((err) => {
+        console.error('❌ [DEBUG ContractPage] Error loading contract:', err);
+        setError('Greška pri učitavanju ugovora');
+      });
   }, [studentId, navigate]);
 
   const clearSignature = () => {

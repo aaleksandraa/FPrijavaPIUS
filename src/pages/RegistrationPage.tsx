@@ -149,7 +149,8 @@ export default function RegistrationPage({ preselectedPackage }: Props) {
       if (data.nacinPlacanja === 'rate') {
         console.log('✅ [DEBUG] Payment method is "rate", navigating to /ugovor');
         console.log('🔵 [DEBUG] Student ID:', response.data.id);
-        navigate('/ugovor', { state: { studentId: response.data.id, formData: data } });
+        // Use URL parameter instead of state to avoid losing data on refresh
+        navigate(`/ugovor?studentId=${response.data.id}`, { state: { formData: data } });
         console.log('✅ [DEBUG] Navigate called successfully');
       } else {
         console.log('✅ [DEBUG] Payment method is "cjelokupno", navigating to /hvala');

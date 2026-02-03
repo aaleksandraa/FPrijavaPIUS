@@ -118,12 +118,20 @@ export default function RegistrationPageNew() {
   const finalPrice = selectedPackage?.discount_price || selectedPackage?.price || '0';
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
-    // This is called from Step 2 - move to Step 3 (contract)
+    console.log('🔵 [REGISTRATION] onSubmit called with data:', data);
+    console.log('🔵 [REGISTRATION] nacinPlacanja:', data.nacinPlacanja);
+    console.log('🔵 [REGISTRATION] Current step:', step);
+    
+    // This is called from Step 2 - move to Step 3 (contract) or create student
     if (data.nacinPlacanja === 'rate') {
-      // For installments, go to contract step
+      // For installments, go to contract step (Step 3)
+      console.log('🔵 [REGISTRATION] Moving to contract step (Step 3)');
       setStep(3);
+      setError(''); // Clear any errors
+      return; // Don't create student yet
     } else {
       // For full payment, create student and go to thank you
+      console.log('🔵 [REGISTRATION] Creating student for full payment');
       await createStudentAndFinish(data);
     }
   };
@@ -546,6 +554,9 @@ export default function RegistrationPageNew() {
             {step === 2 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <h2 className="text-2xl font-bold mb-6 text-center">Tip registracije</h2>
+
+                {/* Hidden input for nacinPlacanja */}
+                <input type="hidden" {...register('nacinPlacanja')} value={nacinPlacanja} />
 
                 <div className="mb-8">
                   <label className="block text-lg font-medium mb-4">Registrujete se kao:</label>

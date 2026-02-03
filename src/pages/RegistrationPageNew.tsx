@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { ArrowLeft, ArrowRight, User, Building, Loader2, Package as PackageIcon, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
-import { createStudent, getPackages } from '../lib/api';
+import SignatureCanvas from 'react-signature-canvas';
+import { ArrowLeft, ArrowRight, User, Building, Loader2, Package as PackageIcon, CheckCircle, ChevronDown, ChevronUp, FileText, Pen, Mail, Phone, MapPin, CreditCard } from 'lucide-react';
+import { createStudent, getPackages, createContract } from '../lib/api';
 import type { FormData, Package as PackageType } from '../types';
 
 // Simplified validation schema
@@ -60,12 +61,14 @@ const schema = yup.object({
 export default function RegistrationPageNew() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [step, setStep] = useState(0); // 3 steps: 0 (package), 1 (basic info), 2 (entity type)
+  const [step, setStep] = useState(0); // 4 steps: 0 (package), 1 (basic info), 2 (entity type), 3 (contract + signature)
   const [loading, setLoading] = useState(false);
   const [packagesLoading, setPackagesLoading] = useState(true);
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [error, setError] = useState('');
   const [expandedPackages, setExpandedPackages] = useState<Record<string, boolean>>({});
+  const [contractAccepted, setContractAccepted] = useState(false);
+  const signatureRef = useRef<SignatureCanvas>(null);
 
   // Get nacinPlacanja from URL
   const nacinPlacanjaFromUrl = searchParams.get('nacinPlacanja') || 'rate';
@@ -108,12 +111,28 @@ export default function RegistrationPageNew() {
 
   const tipLica = watch('tipLica');
   const paket = watch('paket');
+  const nacinPlacanja = watch('nacinPlacanja');
+
+  // Get selected package details
+  const selectedPackage = packages.find(p => p.slug === paket);
+  const finalPrice = selectedPackage?.discount_price || selectedPackage?.price || '0';
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
+    // This is called from Step 2 - move to Step 3 (contract)
+    if (data.nacinPlacanja === 'rate') {
+      // For installments, go to contract step
+      setStep(3);
+    } else {
+      // For full payment, create student and go to thank you
+      await createStudentAndFinish(data);
+    }
+  };
+
+  const createStudentAndFinish = async (data: FormData) => {
     setLoading(true);
     setError('');
 
-    console.log('🔵 [REGISTRATION] Form submitted:', data);
+    console.log('🔵 [REGISTRATION] Creating student:', data);
 
     try {
       const response = await createStudent({
@@ -139,15 +158,9 @@ export default function RegistrationPageNew() {
       });
 
       console.log('✅ [REGISTRATION] Student created:', response.data);
-
-      // Navigate based on payment method
-      if (data.nacinPlacanja === 'rate') {
-        console.log('✅ [REGISTRATION] Navigating to contract page');
-        navigate(`/ugovor?studentId=${response.data.id}`);
-      } else {
-        console.log('✅ [REGISTRATION] Navigating to thank you page');
-        navigate('/hvala', { state: { isContract: false, package: data.paket } });
-      }
+      
+      console.log('✅ [REGISTRATION] Navigating to thank you page');
+      navigate('/hvala', { state: { isContract: false, package: data.paket } });
     } catch (err: any) {
       console.error('❌ [REGISTRATION] Error:', err);
       console.error('❌ [REGISTRATION] Error response:', err.response?.data);
@@ -160,6 +173,78 @@ export default function RegistrationPageNew() {
     }
   };
 
+  const handleSignContract = async () => {
+    if (!signatureRef.current || signatureRef.current.isEmpty()) {
+      setError('Molimo potpišite ugovor');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (!contractAccepted) {
+      setError('Molimo prihvatite uslove ugovora');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    const formData = watch();
+
+    try {
+      // First create student
+      console.log('🔵 [REGISTRATION] Creating student with contract...');
+      const studentResponse = await createStudent({
+        first_name: formData.ime,
+        last_name: formData.prezime,
+        address: formData.adresa,
+        postal_code: formData.postanskiBroj,
+        city: formData.mjesto,
+        country: formData.drzava,
+        phone: formData.telefon,
+        email: formData.email,
+        id_document_number: formData.brojLicnogDokumenta,
+        entity_type: formData.tipLica === 'fizicko' ? 'individual' : 'company',
+        payment_method: 'installments',
+        package_type: formData.paket,
+        company_name: formData.nazivFirme,
+        vat_number: formData.pdvBroj,
+        company_address: formData.adresaFirme,
+        company_postal_code: formData.postanskiBrojFirme,
+        company_city: formData.mjestoFirme,
+        company_country: formData.drzavaFirme,
+        company_registration: formData.registracijaFirme,
+      });
+
+      console.log('✅ [REGISTRATION] Student created:', studentResponse.data);
+      const createdStudentId = studentResponse.data.id;
+
+      // Then create contract with signature
+      console.log('🔵 [REGISTRATION] Creating contract...');
+      const signatureData = signatureRef.current.toDataURL();
+      await createContract({
+        student_id: createdStudentId,
+        signature_data: signatureData,
+      });
+
+      console.log('✅ [REGISTRATION] Contract signed successfully');
+      navigate('/hvala', { state: { isContract: true, package: formData.paket } });
+    } catch (err: any) {
+      console.error('❌ [REGISTRATION] Error:', err);
+      console.error('❌ [REGISTRATION] Error response:', err.response?.data);
+      
+      const errorMessage = err.response?.data?.message || err.message || 'Greška pri registraciji. Pokušajte ponovo.';
+      setError(errorMessage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearSignature = () => {
+    signatureRef.current?.clear();
+  };
+
   const nextStep = async () => {
     let fieldsToValidate: (keyof FormData)[] = [];
 
@@ -169,6 +254,12 @@ export default function RegistrationPageNew() {
     } else if (step === 1) {
       // Step 1: Basic Info
       fieldsToValidate = ['ime', 'prezime', 'email', 'telefon', 'adresa', 'postanskiBroj', 'mjesto', 'drzava', 'brojLicnogDokumenta'];
+    } else if (step === 2) {
+      // Step 2: Entity Type - validate based on tipLica
+      fieldsToValidate = ['tipLica', 'nacinPlacanja'];
+      if (tipLica === 'pravno') {
+        fieldsToValidate.push('nazivFirme', 'pdvBroj', 'adresaFirme', 'postanskiBrojFirme', 'mjestoFirme', 'drzavaFirme', 'registracijaFirme');
+      }
     }
 
     const isValid = await trigger(fieldsToValidate);
@@ -177,7 +268,10 @@ export default function RegistrationPageNew() {
     }
   };
 
-  const prevStep = () => setStep(s => s - 1);
+  const prevStep = () => {
+    setStep(s => s - 1);
+    setError('');
+  };
 
   const togglePackageExpand = (pkgId: string) => {
     setExpandedPackages(prev => ({ ...prev, [pkgId]: !prev[pkgId] }));
@@ -200,14 +294,14 @@ export default function RegistrationPageNew() {
               <ArrowLeft className="h-5 w-5 mr-2" />
               Nazad
             </button>
-            <div className="text-sm text-gray-400">Korak {step + 1} od 3</div>
+            <div className="text-sm text-gray-400">Korak {step + 1} od {nacinPlacanja === 'rate' ? '4' : '3'}</div>
           </div>
 
           {/* Progress bar */}
           <div className="w-full bg-gray-800 rounded-full h-2 mb-8">
             <div
               className="bg-gradient-to-r from-pius to-pius-dark h-2 rounded-full transition-all duration-300"
-              style={{ width: `${((step + 1) / 3) * 100}%` }}
+              style={{ width: `${((step + 1) / (nacinPlacanja === 'rate' ? 4 : 3)) * 100}%` }}
             />
           </div>
 
@@ -570,11 +664,270 @@ export default function RegistrationPageNew() {
                     {loading ? (
                       <>
                         <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                        Registracija...
+                        {nacinPlacanja === 'rate' ? 'Nastavi...' : 'Registracija...'}
                       </>
                     ) : (
                       <>
-                        Završi registraciju <ArrowRight className="h-5 w-5 ml-2" />
+                        {nacinPlacanja === 'rate' ? (
+                          <>Nastavi na ugovor <ArrowRight className="h-5 w-5 ml-2" /></>
+                        ) : (
+                          <>Završi registraciju <CheckCircle className="h-5 w-5 ml-2" /></>
+                        )}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Step 3: Contract + Signature (only for installments) */}
+            {step === 3 && nacinPlacanja === 'rate' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <div className="flex items-center justify-center gap-2 mb-8">
+                  <FileText className="h-6 w-6 text-pius" />
+                  <h2 className="text-2xl font-bold">Ugovor i digitalni potpis</h2>
+                </div>
+
+                {/* Student Summary Card */}
+                <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 mb-6">
+                  <h3 className="text-lg font-bold mb-4 flex items-center">
+                    <User className="h-5 w-5 text-pius mr-2" />
+                    Vaši podaci
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="flex items-start">
+                      <User className="h-4 w-4 text-pius mr-2 mt-0.5" />
+                      <div>
+                        <div className="text-gray-400">Ime i prezime</div>
+                        <div className="font-semibold">{watch('ime')} {watch('prezime')}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <Mail className="h-4 w-4 text-pius mr-2 mt-0.5" />
+                      <div>
+                        <div className="text-gray-400">Email</div>
+                        <div className="font-semibold">{watch('email')}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <Phone className="h-4 w-4 text-pius mr-2 mt-0.5" />
+                      <div>
+                        <div className="text-gray-400">Telefon</div>
+                        <div className="font-semibold">{watch('telefon')}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <MapPin className="h-4 w-4 text-pius mr-2 mt-0.5" />
+                      <div>
+                        <div className="text-gray-400">Adresa</div>
+                        <div className="font-semibold">
+                          {watch('adresa')}, {watch('postanskiBroj')} {watch('mjesto')}, {watch('drzava')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Package Summary Card */}
+                {selectedPackage && (
+                  <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 mb-6">
+                    <h3 className="text-lg font-bold mb-4 flex items-center">
+                      <PackageIcon className="h-5 w-5 text-pius mr-2" />
+                      Odabrani paket
+                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <div className="text-xl font-bold text-pius">{selectedPackage.name}</div>
+                        <div className="text-sm text-gray-400 mt-1">Obrazovni program</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-black text-pius">€{Number(finalPrice).toFixed(0)}</div>
+                        {selectedPackage.discount_price && (
+                          <div className="text-sm text-gray-500 line-through">€{Number(selectedPackage.price).toFixed(0)}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {selectedPackage.installments && selectedPackage.installments.length > 0 && (
+                      <div className="border-t border-gray-700 pt-4 mt-4">
+                        <div className="flex items-center mb-3">
+                          <CreditCard className="h-4 w-4 text-pius mr-2" />
+                          <h4 className="font-semibold text-sm">Plan plaćanja na rate</h4>
+                        </div>
+                        <div className="space-y-2">
+                          {selectedPackage.installments.map((inst: any) => (
+                            <div key={inst.id} className="flex justify-between text-sm">
+                              <span className="text-gray-300">
+                                {inst.installment_number === 1 ? 'Akontacija' : `${inst.installment_number}. rata`}
+                                {inst.due_description && ` (${inst.due_description})`}:
+                              </span>
+                              <span className="font-semibold text-white">€{Number(inst.amount).toFixed(0)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Contract Text */}
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold mb-3 flex items-center">
+                    <FileText className="h-5 w-5 text-pius mr-2" />
+                    Ugovor o prodaji obrazovnog programa
+                  </h3>
+                  <div className="bg-gray-800 border border-gray-700 p-6 rounded-xl max-h-64 overflow-y-auto">
+                    <div className="text-sm text-gray-300 leading-relaxed space-y-4">
+                      <div>
+                        <h4 className="font-bold text-white mb-2">UGOVOR O PRODAJI OBRAZOVNOG PROGRAMA NA RATE</h4>
+                      </div>
+                      
+                      <div>
+                        <p className="font-semibold text-white">PRODAVAC:</p>
+                        <p>PIUS Academy d.o.o.</p>
+                        <p>Adresa: [Adresa prodavca]</p>
+                        <p>PIB: [PIB broj]</p>
+                        <p>Matični broj: [Matični broj]</p>
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-white">KUPAC:</p>
+                        <p>{watch('ime')} {watch('prezime')}</p>
+                        <p>Email: {watch('email')}</p>
+                        <p>Telefon: {watch('telefon')}</p>
+                        <p>Adresa: {watch('adresa')}, {watch('postanskiBroj')} {watch('mjesto')}, {watch('drzava')}</p>
+                        <p>Broj ličnog dokumenta: {watch('brojLicnogDokumenta')}</p>
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-white">PREDMET UGOVORA:</p>
+                        <p>Obrazovni program: {selectedPackage?.name}</p>
+                        <p>Ukupna cijena: €{Number(finalPrice).toFixed(2)}</p>
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-white">NAČIN PLAĆANJA:</p>
+                        <p>Plaćanje na rate:</p>
+                        {selectedPackage?.installments?.map((inst: any, idx: number) => (
+                          <p key={idx}>
+                            - {inst.installment_number === 1 ? 'Akontacija' : `${inst.installment_number}. rata`}: 
+                            €{Number(inst.amount).toFixed(2)} 
+                            {inst.due_description && ` (${inst.due_description})`}
+                          </p>
+                        ))}
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-white">PRAVA I OBAVEZE:</p>
+                        <p>1. Prodavac se obavezuje da kupcu omogući pristup obrazovnom programu nakon uplate akontacije.</p>
+                        <p>2. Kupac se obavezuje da plati sve rate u dogovorenim rokovima.</p>
+                        <p>3. U slučaju kašnjenja sa plaćanjem, prodavac zadržava pravo da suspenduje pristup programu.</p>
+                        <p>4. Kupac ima pravo na povrat novca u roku od 14 dana od potpisivanja ugovora, ukoliko nije pristupio programu.</p>
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-white">ZAVRŠNE ODREDBE:</p>
+                        <p>Ovaj ugovor stupa na snagu danom potpisivanja od strane obe ugovorne strane.</p>
+                        <p>Datum: {new Date().toLocaleDateString('sr-RS')}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contract Acceptance */}
+                <div className="mb-6">
+                  <label className="flex items-start p-4 bg-gray-800/50 border border-gray-700 rounded-xl cursor-pointer hover:bg-gray-800/70 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={contractAccepted}
+                      onChange={(e) => setContractAccepted(e.target.checked)}
+                      className="mr-3 w-5 h-5 text-pius bg-gray-700 border-gray-600 rounded focus:ring-pius mt-0.5"
+                    />
+                    <div>
+                      <div className="font-semibold text-white">Prihvatam uslove ugovora</div>
+                      <div className="text-sm text-gray-400 mt-1">
+                        Pročitao/la sam i razumijem sve odredbe ugovora. Potvrđujem da su svi podaci tačni i da pristajem na uslove plaćanja.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Signature Area */}
+                {contractAccepted && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mb-6"
+                  >
+                    <h3 className="text-lg font-bold mb-3 flex items-center">
+                      <Pen className="h-5 w-5 text-pius mr-2" />
+                      Vaš digitalni potpis
+                    </h3>
+
+                    <div className="border-2 border-dashed border-gray-600 rounded-xl p-4 mb-4 bg-gray-800/30">
+                      <SignatureCanvas
+                        ref={signatureRef}
+                        canvasProps={{
+                          width: 700,
+                          height: 200,
+                          className: 'signature-canvas w-full bg-white rounded-lg',
+                        }}
+                        backgroundColor="white"
+                        penColor="black"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={clearSignature}
+                      className="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-colors font-semibold text-sm mb-4"
+                    >
+                      Obriši potpis
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* Info Box */}
+                <div className="bg-pius/10 border border-pius/30 rounded-xl p-4 mb-6">
+                  <div className="flex items-start">
+                    <CheckCircle className="h-5 w-5 text-pius mr-3 mt-1 flex-shrink-0" />
+                    <div>
+                      <h4 className="font-semibold text-pius mb-2 text-sm">Važne napomene:</h4>
+                      <ul className="text-xs text-gray-300 space-y-1">
+                        <li>• Potpisivanjem ovog ugovora prihvatate sve uslove navedene u dokumentu</li>
+                        <li>• Ugovor će biti automatski sačuvan i poslat na vašu email adresu</li>
+                        <li>• Prva rata dospijeva u roku od 24h od datuma potpisivanja ugovora</li>
+                        <li>• Nakon potpisivanja, dobićete pristup obrazovnoj platformi</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Navigation Buttons */}
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={prevStep}
+                    disabled={loading}
+                    className="flex-1 border border-gray-600 text-gray-300 py-4 rounded-xl font-semibold flex items-center justify-center hover:bg-gray-800 transition-colors disabled:opacity-50"
+                  >
+                    <ArrowLeft className="h-5 w-5 mr-2" /> Nazad
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSignContract}
+                    disabled={loading || !contractAccepted}
+                    className="flex-1 bg-gradient-to-r from-pius to-pius-dark text-black py-4 rounded-xl font-semibold flex items-center justify-center text-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Potpisivanje...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-5 w-5 mr-2" />
+                        POTPIŠI I ZAVRŠI
                       </>
                     )}
                   </button>

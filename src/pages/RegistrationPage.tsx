@@ -116,7 +116,11 @@ export default function RegistrationPage({ preselectedPackage }: Props) {
     setLoading(true);
     setError('');
 
+    console.log('🔵 [DEBUG] Form submitted with data:', data);
+    console.log('🔵 [DEBUG] Payment method:', data.nacinPlacanja);
+
     try {
+      console.log('🔵 [DEBUG] Creating student...');
       const response = await createStudent({
         first_name: data.ime,
         last_name: data.prezime,
@@ -139,15 +143,25 @@ export default function RegistrationPage({ preselectedPackage }: Props) {
         company_registration: data.registracijaFirme,
       });
 
+      console.log('✅ [DEBUG] Student created:', response.data);
+      console.log('🔵 [DEBUG] Checking payment method for navigation...');
+
       if (data.nacinPlacanja === 'rate') {
+        console.log('✅ [DEBUG] Payment method is "rate", navigating to /ugovor');
+        console.log('🔵 [DEBUG] Student ID:', response.data.id);
         navigate('/ugovor', { state: { studentId: response.data.id, formData: data } });
+        console.log('✅ [DEBUG] Navigate called successfully');
       } else {
+        console.log('✅ [DEBUG] Payment method is "cjelokupno", navigating to /hvala');
         navigate('/hvala', { state: { isContract: false, package: data.paket } });
       }
     } catch (err: any) {
+      console.error('❌ [DEBUG] Error creating student:', err);
+      console.error('❌ [DEBUG] Error response:', err.response?.data);
       setError(err.response?.data?.message || 'Greška pri registraciji. Pokušajte ponovo.');
     } finally {
       setLoading(false);
+      console.log('🔵 [DEBUG] Loading set to false');
     }
   };
 

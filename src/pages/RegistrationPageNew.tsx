@@ -330,7 +330,9 @@ export default function RegistrationPageNew() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)}>
+          {/* Form for Steps 0, 1, 2 ONLY */}
+          {step !== 3 && (
+            <form onSubmit={handleSubmit(onSubmit)}>
             {/* Step 0: Package Selection */}
             {step === 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -698,9 +700,11 @@ export default function RegistrationPageNew() {
                 </div>
               </motion.div>
             )}
+            </form>
+          )}
 
-            {/* Step 3: Contract + Signature (only for installments) */}
-            {step === 3 && nacinPlacanja === 'rate' && (
+          {/* Step 3: Contract + Signature (OUTSIDE form tag) */}
+          {step === 3 && nacinPlacanja === 'rate' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <div className="flex items-center justify-center gap-2 mb-8">
                   <FileText className="h-6 w-6 text-pius" />
@@ -953,7 +957,6 @@ export default function RegistrationPageNew() {
                 </div>
               </motion.div>
             )}
-          </form>
         </motion.div>
       </div>
     </div>

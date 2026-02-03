@@ -109,6 +109,11 @@ export default function RegistrationPageNew() {
     }
   }, [packages, setValue, watch]);
 
+  // Set nacinPlacanja from URL when component mounts
+  useEffect(() => {
+    setValue('nacinPlacanja', nacinPlacanjaFromUrl as 'cjelokupno' | 'rate');
+  }, [nacinPlacanjaFromUrl, setValue]);
+
   const tipLica = watch('tipLica');
   const paket = watch('paket');
   const nacinPlacanja = watch('nacinPlacanja');
@@ -296,7 +301,13 @@ export default function RegistrationPageNew() {
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <button
-              onClick={() => navigate('/')}
+              onClick={() => {
+                if (step === 0) {
+                  navigate('/');
+                } else {
+                  prevStep();
+                }
+              }}
               className="flex items-center text-gray-400 hover:text-pius transition-colors"
             >
               <ArrowLeft className="h-5 w-5 mr-2" />
@@ -554,9 +565,6 @@ export default function RegistrationPageNew() {
             {step === 2 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <h2 className="text-2xl font-bold mb-6 text-center">Tip registracije</h2>
-
-                {/* Hidden input for nacinPlacanja */}
-                <input type="hidden" {...register('nacinPlacanja')} value={nacinPlacanja} />
 
                 <div className="mb-8">
                   <label className="block text-lg font-medium mb-4">Registrujete se kao:</label>

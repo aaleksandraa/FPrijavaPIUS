@@ -2,8 +2,8 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import LandingPage from './pages/LandingPage';
 import UpisLandingPage from './pages/UpisLandingPage';
-import RegistrationPage from './pages/RegistrationPage';
-import ContractPage from './pages/ContractPage';
+import RegistrationPageNew from './pages/RegistrationPageNew';
+import ContractPageNew from './pages/ContractPageNew';
 import ThankYouPage from './pages/ThankYouPage';
 import CourseRegistrationPage from './pages/CourseRegistrationPage';
 import AdminLogin from './pages/admin/AdminLogin';
@@ -49,8 +49,8 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/upis" element={<UpisLandingPage />} />
       <Route path="/upis/:slug" element={<CourseRegistrationPage />} />
-      <Route path="/registracija" element={<RegistrationPage />} />
-      <Route path="/ugovor" element={<ContractPage />} />
+      <Route path="/registracija" element={<RegistrationPageNew />} />
+      <Route path="/ugovor" element={<ContractPageNew />} />
       <Route path="/hvala" element={<ThankYouPage />} />
       {/* Catch-all route for course registration by slug (e.g., /usne, /nokti) */}
       <Route path="/:slug" element={<CourseRegistrationPage />} />

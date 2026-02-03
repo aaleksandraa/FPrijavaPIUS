@@ -113,7 +113,6 @@ export default function RegistrationPage({ preselectedPackage }: Props) {
   const totalSteps = preselectedPackage ? 3 : 4;
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
-    alert('🔵 FORM SUBMITTED! Payment method: ' + data.nacinPlacanja);
     setLoading(true);
     setError('');
 
@@ -122,7 +121,6 @@ export default function RegistrationPage({ preselectedPackage }: Props) {
 
     try {
       console.log('🔵 [DEBUG] Creating student...');
-      alert('🔵 Creating student...');
       const response = await createStudent({
         first_name: data.ime,
         last_name: data.prezime,
@@ -147,12 +145,10 @@ export default function RegistrationPage({ preselectedPackage }: Props) {
 
       console.log('✅ [DEBUG] Student created:', response.data);
       console.log('🔵 [DEBUG] Checking payment method for navigation...');
-      alert('✅ Student created! ID: ' + response.data.id);
 
       if (data.nacinPlacanja === 'rate') {
         console.log('✅ [DEBUG] Payment method is "rate", navigating to /ugovor');
         console.log('🔵 [DEBUG] Student ID:', response.data.id);
-        alert('✅ Navigating to /ugovor with studentId: ' + response.data.id);
         // Use URL parameter instead of state to avoid losing data on refresh
         navigate(`/ugovor?studentId=${response.data.id}`, { state: { formData: data } });
         console.log('✅ [DEBUG] Navigate called successfully');
@@ -163,7 +159,15 @@ export default function RegistrationPage({ preselectedPackage }: Props) {
     } catch (err: any) {
       console.error('❌ [DEBUG] Error creating student:', err);
       console.error('❌ [DEBUG] Error response:', err.response?.data);
-      setError(err.response?.data?.message || 'Greška pri registraciji. Pokušajte ponovo.');
+      console.error('❌ [DEBUG] Error message:', err.message);
+      console.error('❌ [DEBUG] Full error:', JSON.stringify(err, null, 2));
+      
+      // Show error in UI
+      const errorMessage = err.response?.data?.message || err.message || 'Greška pri registraciji. Pokušajte ponovo.';
+      setError(errorMessage);
+      
+      // Scroll to top to show error
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
       console.log('🔵 [DEBUG] Loading set to false');

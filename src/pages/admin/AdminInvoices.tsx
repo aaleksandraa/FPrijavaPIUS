@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Plus, Download, X, Search, CheckCircle, Clock, XCircle, User, Trash2, UserPlus, Mail, Settings, Bell } from 'lucide-react';
+import { FileText, Plus, Download, X, Search, CheckCircle, Clock, XCircle, User, Trash2, UserPlus, Mail, Settings, Bell, Edit } from 'lucide-react';
 import { getInvoices, getStudents, createInvoice, updateInvoice, deleteInvoice, downloadInvoicePdf, getPackages, createStudent, sendPaymentReminder, getSettings, updateSettings } from '../../lib/api';
 import type { Invoice, Student, Package as PackageType } from '../../types';
 
@@ -12,9 +12,11 @@ export default function AdminInvoices() {
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
+  const [invoiceToEdit, setInvoiceToEdit] = useState<Invoice | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -169,6 +171,30 @@ export default function AdminInvoices() {
   const handleDeleteClick = (invoice: Invoice) => { setInvoiceToDelete(invoice); setShowDeleteModal(true); };
   const handleDeleteConfirm = async () => { if (!invoiceToDelete) return; try { await deleteInvoice(invoiceToDelete.id); await loadData(); setShowDeleteModal(false); setInvoiceToDelete(null); } catch (err) { console.error(err); } };
 
+  const handleEditClick = (invoice: Invoice) => {
+    setInvoiceToEdit(invoice);
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invoiceToEdit) return;
+    setSaving(true);
+    try {
+      await updateInvoice(invoiceToEdit.id, {
+        notes: invoiceToEdit.notes,
+        description: invoiceToEdit.description,
+      });
+      await loadData();
+      setShowEditModal(false);
+      setInvoiceToEdit(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDownloadPdf = async (invoice: Invoice) => {
     try {
       const response = await downloadInvoicePdf(invoice.id);
@@ -293,6 +319,7 @@ export default function AdminInvoices() {
                   <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(invoice.status)}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
+                      <button onClick={() => handleEditClick(invoice)} className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-lg" title="Uredi fakturu"><Edit className="h-4 w-4" /></button>
                       <button onClick={() => handleDownloadPdf(invoice)} className="p-2 text-pius hover:bg-pius/10 rounded-lg" title="Preuzmi PDF"><Download className="h-4 w-4" /></button>
                       {invoice.status === 'pending' && (
                         <>
@@ -508,6 +535,70 @@ export default function AdminInvoices() {
                   <button onClick={handleDeleteConfirm} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-medium">Obriši</button>
                 </div>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Invoice Modal */}
+      <AnimatePresence>
+        {showEditModal && invoiceToEdit && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowEditModal(false)}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-gray-900 border border-gray-700 rounded-2xl max-w-xl w-full" onClick={(e) => e.stopPropagation()}>
+              <div className="sticky top-0 bg-gray-900 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <Edit className="h-5 w-5 text-pius" />
+                  Uredi fakturu
+                </h2>
+                <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-white">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+                <div className="bg-gray-800/50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-400">Broj fakture</p>
+                  <p className="text-lg font-mono text-pius">{invoiceToEdit.invoice_number}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Opis</label>
+                  <input
+                    type="text"
+                    value={invoiceToEdit.description || ''}
+                    onChange={(e) => setInvoiceToEdit({ ...invoiceToEdit, description: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Napomena (Hinweis)</label>
+                  <textarea
+                    value={invoiceToEdit.notes || ''}
+                    onChange={(e) => setInvoiceToEdit({ ...invoiceToEdit, notes: e.target.value })}
+                    placeholder="Unesite napomenu koja će se prikazati na fakturi..."
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white h-32"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Ova napomena će se prikazati na PDF fakturi kao "Hinweis:"</p>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-gray-700">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    className="flex-1 border border-gray-600 text-gray-300 hover:bg-gray-800 py-3 rounded-lg font-medium"
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="flex-1 bg-pius hover:bg-pius-dark text-black py-3 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {saving ? 'Spremanje...' : 'Spremi izmjene'}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </motion.div>
         )}

@@ -169,7 +169,20 @@ export default function AdminInvoices() {
   };
 
   const handleDeleteClick = (invoice: Invoice) => { setInvoiceToDelete(invoice); setShowDeleteModal(true); };
-  const handleDeleteConfirm = async () => { if (!invoiceToDelete) return; try { await deleteInvoice(invoiceToDelete.id); await loadData(); setShowDeleteModal(false); setInvoiceToDelete(null); } catch (err) { console.error(err); } };
+  const handleDeleteConfirm = async () => { 
+    if (!invoiceToDelete) return; 
+    try { 
+      await deleteInvoice(invoiceToDelete.id); 
+      await loadData(); 
+      // Small delay to ensure state updates
+      setTimeout(() => {
+        setShowDeleteModal(false); 
+        setInvoiceToDelete(null);
+      }, 100);
+    } catch (err) { 
+      console.error(err); 
+    } 
+  };
 
   const handleEditClick = (invoice: Invoice) => {
     setInvoiceToEdit(invoice);
@@ -185,12 +198,16 @@ export default function AdminInvoices() {
         notes: invoiceToEdit.notes,
         description: invoiceToEdit.description,
       });
+      // Reload data first, then close modal
       await loadData();
-      setShowEditModal(false);
-      setInvoiceToEdit(null);
+      // Small delay to ensure state updates
+      setTimeout(() => {
+        setShowEditModal(false);
+        setInvoiceToEdit(null);
+        setSaving(false);
+      }, 100);
     } catch (err) {
       console.error(err);
-    } finally {
       setSaving(false);
     }
   };

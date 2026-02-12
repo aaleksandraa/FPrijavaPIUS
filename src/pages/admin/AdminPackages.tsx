@@ -60,11 +60,14 @@ export default function AdminPackages() {
     try {
       await createPackage(newPackage);
       await loadPackages();
-      setShowCreateModal(false);
-      setNewPackage(emptyPackage);
+      // Small delay to ensure state updates
+      setTimeout(() => {
+        setShowCreateModal(false);
+        setNewPackage(emptyPackage);
+        setSaving(false);
+      }, 100);
     } catch (err) {
       console.error(err);
-    } finally {
       setSaving(false);
     }
   };
@@ -75,10 +78,13 @@ export default function AdminPackages() {
     try {
       await updatePackage(editingPackage.id, editingPackage);
       await loadPackages();
-      setEditingPackage(null);
+      // Small delay to ensure state updates
+      setTimeout(() => {
+        setEditingPackage(null);
+        setSaving(false);
+      }, 100);
     } catch (err) {
       console.error(err);
-    } finally {
       setSaving(false);
     }
   };
@@ -89,9 +95,12 @@ export default function AdminPackages() {
     try {
       await deletePackage(packageToDelete.id, forceDelete);
       await loadPackages();
-      setShowDeleteModal(false);
-      setPackageToDelete(null);
-      setForceDelete(false);
+      // Small delay to ensure state updates
+      setTimeout(() => {
+        setShowDeleteModal(false);
+        setPackageToDelete(null);
+        setForceDelete(false);
+      }, 100);
     } catch (err: any) {
       console.error(err);
       const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Greška pri brisanju paketa';

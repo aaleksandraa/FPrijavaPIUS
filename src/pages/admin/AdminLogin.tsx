@@ -32,14 +32,20 @@ export default function AdminLogin() {
 
     try {
       const response = await login(data.email, data.password);
-      localStorage.setItem('pius_admin_token', response.data.token);
+      const token = response.data?.token;
+
+      if (!token) {
+        throw new Error('Login odgovor ne sadrzi token.');
+      }
+
+      localStorage.setItem('pius_admin_token', token);
       localStorage.setItem('pius_admin_session', JSON.stringify({
         ...response.data.user,
         loginTime: new Date().toISOString(),
       }));
       navigate('/admin');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Neispravni podaci za prijavu.');
+      setError(err.response?.data?.message || err.message || 'Neispravni podaci za prijavu.');
     } finally {
       setLoading(false);
     }

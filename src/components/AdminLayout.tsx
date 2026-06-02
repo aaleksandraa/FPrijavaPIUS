@@ -13,6 +13,10 @@ export default function AdminLayout() {
   useEffect(() => {
     const token = localStorage.getItem('pius_admin_token');
     if (!token) {
+      sessionStorage.setItem(
+        'pius_admin_auth_error',
+        'Admin token nije pronadjen u browseru. Prijavite se ponovo.'
+      );
       navigate('/admin/login');
       return;
     }
@@ -21,6 +25,10 @@ export default function AdminLayout() {
       .then(res => setAdmin(res.data))
       .catch(() => {
         localStorage.removeItem('pius_admin_token');
+        sessionStorage.setItem(
+          'pius_admin_auth_error',
+          'Admin token postoji, ali ga server nije prihvatio.'
+        );
         navigate('/admin/login');
       })
       .finally(() => setLoading(false));

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { Lock, Mail, Eye, EyeOff, Sparkles } from 'lucide-react';
-import { login } from '../../lib/api';
+import { getMe, login } from '../../lib/api';
 
 interface LoginForm {
   email: string;
@@ -20,6 +20,12 @@ export default function AdminLogin() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const authError = sessionStorage.getItem('pius_admin_auth_error');
+
+    if (authError) {
+      setError(authError);
+      sessionStorage.removeItem('pius_admin_auth_error');
+    }
 
     if (params.has('email') || params.has('password') || params.has('admin')) {
       navigate('/admin/login', { replace: true });
@@ -39,10 +45,32 @@ export default function AdminLogin() {
       }
 
       localStorage.setItem('pius_admin_token', token);
+
+      if (localStorage.getItem('pius_admin_token') !== token) {
+        throw new Error('Browser nije uspio sacuvati admin sesiju. Ocistite cache ili probajte drugi browser.');
+      }
+
       localStorage.setItem('pius_admin_session', JSON.stringify({
         ...response.data.user,
         loginTime: new Date().toISOString(),
       }));
+
+      try {
+        await getMe({ skipAuthRedirect: true });
+      } catch (verifyError: any) {
+        localStorage.removeItem('pius_admin_token');
+        localStorage.removeItem('pius_admin_session');
+
+        const status = verifyError.response?.status;
+        const message = verifyError.response?.data?.message;
+
+        throw new Error(
+          status === 401
+            ? 'Login je prosao, ali server nije prihvatio token za admin sesiju.'
+            : message || 'Login je prosao, ali provjera admin sesije nije uspjela.'
+        );
+      }
+
       navigate('/admin');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Neispravni podaci za prijavu.');

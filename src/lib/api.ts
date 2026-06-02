@@ -68,11 +68,15 @@ api.interceptors.response.use(
         responseData: error.response?.data,
       });
       
-      if (error.response?.status === 401) {
+      if (error.response?.status === 401 && !error.config?.skipAuthRedirect) {
         safeAPICall(
           () => {
             localStorage.removeItem('pius_admin_token');
             localStorage.removeItem('pius_admin_session');
+            sessionStorage.setItem(
+              'pius_admin_auth_error',
+              'Sesija nije potvrdjena na serveru. Prijavite se ponovo.'
+            );
           },
           undefined,
           'localStorage.removeItem'
@@ -95,7 +99,7 @@ export const login = (email: string, password: string) =>
 
 export const logout = () => api.post('/auth/logout');
 
-export const getMe = () => api.get('/auth/me');
+export const getMe = (config?: Record<string, any>) => api.get('/auth/me', config);
 
 export const forgotPassword = (email: string) =>
   api.post('/auth/forgot-password', { email });

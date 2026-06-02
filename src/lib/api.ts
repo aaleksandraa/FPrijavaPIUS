@@ -183,6 +183,8 @@ export const deleteInvoice = (id: string) => api.delete(`/invoices/${id}`);
 export const downloadInvoicePdf = (id: string) =>
   api.get(`/invoices/${id}/pdf`, { responseType: 'blob' });
 
+export const sendInvoiceEmail = (invoiceId: string) => api.post(`/invoices/${invoiceId}/send`);
+
 export const getStudentPaymentStatus = () => api.get('/invoices/payment-status');
 
 export const getStudentsWithUnpaidInstallments = () => api.get('/invoices/students-unpaid');

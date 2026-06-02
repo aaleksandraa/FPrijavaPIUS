@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Plus, Download, X, Search, CheckCircle, Clock, XCircle, User, Trash2, UserPlus, Mail, Settings, Bell, Edit } from 'lucide-react';
-import { getInvoices, getStudents, createInvoice, updateInvoice, deleteInvoice, downloadInvoicePdf, getPackages, createStudent, sendPaymentReminder, sendInvoiceEmail, getSettings, updateSettings } from '../../lib/api';
+import { getInvoices, getStudents, createInvoice, updateInvoice, deleteInvoice, downloadInvoicePdf, getPackages, createStudent, sendPaymentReminder, sendInvoiceEmail, sendInvoiceTestEmail, getSettings, updateSettings } from '../../lib/api';
 import type { Invoice, Student, Package as PackageType } from '../../types';
 
 type InvoiceMode = 'existing' | 'new';
@@ -25,6 +25,7 @@ export default function AdminInvoices() {
   const [invoiceMode, setInvoiceMode] = useState<InvoiceMode>('existing');
   const [saving, setSaving] = useState(false);
   const [sendingInvoice, setSendingInvoice] = useState<string | null>(null);
+  const [sendingInvoiceTest, setSendingInvoiceTest] = useState<string | null>(null);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
   const [settings, setSettings] = useState({ payment_reminder_enabled: false, payment_reminder_days_before: 2, payment_reminder_email_template: '' });
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -260,6 +261,20 @@ export default function AdminInvoices() {
     }
   };
 
+  const handleSendInvoiceTest = async (invoice: Invoice) => {
+    setSendingInvoiceTest(invoice.id);
+    try {
+      const response = await sendInvoiceTestEmail(invoice.id);
+      alert(response.data?.message || 'Test faktura je uspjesno poslana na admin email.');
+    } catch (err: any) {
+      console.error(err);
+      const errorMsg = err.response?.data?.message || 'Greska pri slanju test fakture. Provjerite SMTP konfiguraciju.';
+      alert(errorMsg);
+    } finally {
+      setSendingInvoiceTest(null);
+    }
+  };
+
   const handleSaveSettings = async () => {
     try {
       await updateSettings(settings);
@@ -355,6 +370,9 @@ export default function AdminInvoices() {
                       <button onClick={() => handleDownloadPdf(invoice)} className="p-2 text-pius hover:bg-pius/10 rounded-lg" title="Preuzmi PDF"><Download className="h-4 w-4" /></button>
                       <button onClick={() => handleSendInvoice(invoice)} disabled={sendingInvoice === invoice.id} className="p-2 text-green-400 hover:bg-green-400/10 rounded-lg disabled:opacity-50" title="Posalji fakturu klijentu">
                         <Mail className={`h-4 w-4 ${sendingInvoice === invoice.id ? 'animate-pulse' : ''}`} />
+                      </button>
+                      <button onClick={() => handleSendInvoiceTest(invoice)} disabled={sendingInvoiceTest === invoice.id} className="px-2 py-1 text-xs font-medium text-yellow-400 border border-yellow-600/60 hover:bg-yellow-400/10 rounded-lg disabled:opacity-50" title="Posalji test fakturu na admin email">
+                        {sendingInvoiceTest === invoice.id ? 'Slanje...' : 'Test'}
                       </button>
                       {invoice.status === 'pending' && (
                         <>

@@ -185,6 +185,8 @@ export const downloadInvoicePdf = (id: string) =>
 
 export const sendInvoiceEmail = (invoiceId: string) => api.post(`/invoices/${invoiceId}/send`);
 
+export const sendInvoiceTestEmail = (invoiceId: string) => api.post(`/invoices/${invoiceId}/send-test`);
+
 export const getStudentPaymentStatus = () => api.get('/invoices/payment-status');
 
 export const getStudentsWithUnpaidInstallments = () => api.get('/invoices/students-unpaid');

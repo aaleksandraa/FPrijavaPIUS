@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { Lock, Mail, Eye, EyeOff, Sparkles } from 'lucide-react';
@@ -17,6 +17,14 @@ export default function AdminLogin() {
   const [error, setError] = useState('');
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.has('email') || params.has('password') || params.has('admin')) {
+      navigate('/admin/login', { replace: true });
+    }
+  }, [navigate]);
 
   const onSubmit = async (data: LoginForm) => {
     setLoading(true);
@@ -57,7 +65,7 @@ export default function AdminLogin() {
           </div>
 
           {/* Login Form */}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {error && (
               <div className="bg-red-900/20 border border-red-700 rounded-lg p-3 text-red-300 text-sm">
                 {error}
@@ -81,10 +89,15 @@ export default function AdminLogin() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                <Lock className="inline h-4 w-4 mr-1" />
-                Lozinka
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-300">
+                  <Lock className="inline h-4 w-4 mr-1" />
+                  Lozinka
+                </label>
+                <Link to="/admin/forgot-password" className="text-sm text-pius hover:text-pius-light">
+                  Zaboravili ste lozinku?
+                </Link>
+              </div>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}

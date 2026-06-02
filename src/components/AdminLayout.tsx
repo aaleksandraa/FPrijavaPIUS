@@ -13,7 +13,7 @@ export default function AdminLayout() {
   useEffect(() => {
     const token = localStorage.getItem('pius_admin_token');
     if (!token) {
-      navigate('/?admin=true');
+      navigate('/admin/login');
       return;
     }
 
@@ -21,7 +21,7 @@ export default function AdminLayout() {
       .then(res => setAdmin(res.data))
       .catch(() => {
         localStorage.removeItem('pius_admin_token');
-        navigate('/?admin=true');
+        navigate('/admin/login');
       })
       .finally(() => setLoading(false));
   }, [navigate]);
@@ -32,7 +32,7 @@ export default function AdminLayout() {
     } catch {}
     localStorage.removeItem('pius_admin_token');
     localStorage.removeItem('pius_admin_session');
-    navigate('/?admin=true');
+    navigate('/admin/login');
   };
 
   if (loading) {

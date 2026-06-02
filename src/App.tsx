@@ -7,6 +7,8 @@ import ContractPageNew from './pages/ContractPageNew';
 import ThankYouPage from './pages/ThankYouPage';
 import CourseRegistrationPage from './pages/CourseRegistrationPage';
 import AdminLogin from './pages/admin/AdminLogin';
+import AdminForgotPassword from './pages/admin/AdminForgotPassword';
+import AdminResetPassword from './pages/admin/AdminResetPassword';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminStudents from './pages/admin/AdminStudents';
 import AdminContracts from './pages/admin/AdminContracts';
@@ -22,7 +24,7 @@ function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (params.get('admin') === 'true') {
+    if (params.get('admin') === 'true' || params.has('email') || params.has('password')) {
       setIsAdmin(true);
     }
   }, [location]);
@@ -31,6 +33,9 @@ function App() {
     return (
       <Routes>
         <Route path="/" element={<AdminLogin />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/forgot-password" element={<AdminForgotPassword />} />
+        <Route path="/admin/reset-password" element={<AdminResetPassword />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
           <Route path="students" element={<AdminStudents />} />

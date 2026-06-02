@@ -77,7 +77,7 @@ api.interceptors.response.use(
           undefined,
           'localStorage.removeItem'
         );
-        window.location.href = '/?admin=true';
+        window.location.href = '/admin/login';
       }
     } catch (handlingError) {
       console.error('❌ Error in error handler:', handlingError);
@@ -96,6 +96,22 @@ export const login = (email: string, password: string) =>
 export const logout = () => api.post('/auth/logout');
 
 export const getMe = () => api.get('/auth/me');
+
+export const forgotPassword = (email: string) =>
+  api.post('/auth/forgot-password', { email });
+
+export const resetPassword = (
+  email: string,
+  token: string,
+  password: string,
+  passwordConfirmation: string
+) =>
+  api.post('/auth/reset-password', {
+    email,
+    token,
+    password,
+    password_confirmation: passwordConfirmation,
+  });
 
 // Students
 export const getStudents = (params?: Record<string, string>) =>

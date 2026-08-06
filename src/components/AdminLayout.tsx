@@ -11,28 +11,45 @@ export default function AdminLayout() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('pius_admin_token');
-    if (!token) {
-      sessionStorage.setItem(
-        'pius_admin_auth_error',
-        'Admin token nije pronadjen u browseru. Prijavite se ponovo.'
-      );
-      navigate('/admin/login');
-      return;
-    }
+    let cancelled = false;
 
-    getMe({ skipAuthRedirect: true })
-      .then(res => setAdmin(res.data))
-      .catch(() => {
+    const verifySession = async () => {
+      const token = localStorage.getItem('pius_admin_token');
+
+      if (!token) {
+        sessionStorage.setItem(
+          'pius_admin_auth_error',
+          'Admin token nije pronadjen u browseru. Prijavite se ponovo.'
+        );
+        navigate('/admin/login', { replace: true });
+        return;
+      }
+
+      try {
+        const response = await getMe({ skipAuthRedirect: true });
+        if (!cancelled) {
+          setAdmin(response.data);
+        }
+      } catch {
         localStorage.removeItem('pius_admin_token');
         localStorage.removeItem('pius_admin_session');
         sessionStorage.setItem(
           'pius_admin_auth_error',
-          'Admin token postoji, ali ga server nije prihvatio.'
+          'Admin token postoji, ali ga server nije prihvatio. Resetujte lozinku i prijavite se ponovo.'
         );
         navigate('/admin/login', { replace: true });
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void verifySession();
+
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
   const handleLogout = async () => {
@@ -52,6 +69,10 @@ export default function AdminLayout() {
     );
   }
 
+  if (!admin) {
+    return null;
+  }
+
   const navItems = [
     { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/admin/students', icon: Users, label: 'Studenti' },
@@ -64,7 +85,6 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-screen bg-black text-white font-poppins">
-      {/* Header */}
       <div className="bg-gray-900 border-b border-pius/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
@@ -74,7 +94,7 @@ export default function AdminLayout() {
             <div className="flex items-center gap-4">
               <div className="text-sm text-gray-400">
                 <div>Prijavljen kao:</div>
-                <div className="text-pius font-medium">{admin?.email}</div>
+                <div className="text-pius font-medium">{admin.email}</div>
               </div>
               <button
                 onClick={handleLogout}
@@ -88,7 +108,6 @@ export default function AdminLayout() {
         </div>
       </div>
 
-      {/* Navigation */}
       <div className="bg-gray-900 border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex space-x-8">
@@ -110,7 +129,6 @@ export default function AdminLayout() {
         </div>
       </div>
 
-      {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Outlet />
       </div>

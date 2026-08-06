@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { Lock, Mail, Eye, EyeOff, Sparkles } from 'lucide-react';
@@ -12,6 +12,7 @@ interface LoginForm {
 
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -19,30 +20,22 @@ export default function AdminLogin() {
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>();
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
     const authError = sessionStorage.getItem('pius_admin_auth_error');
-
     if (authError) {
       setError(authError);
       sessionStorage.removeItem('pius_admin_auth_error');
     }
 
-    const email = params.get('email');
-    const token = params.get('token');
+    const email = searchParams.get('email');
+    const token = searchParams.get('token');
 
     if (email && token) {
       navigate(
         `/admin/reset-password?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`,
         { replace: true }
       );
-      return;
     }
-
-    // Strip only leaked password/admin flags from URL (GET form submit puts credentials in query string)
-    if (params.has('password') || params.get('admin') === 'true') {
-      navigate('/admin/login', { replace: true });
-    }
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   const onSubmit = async (data: LoginForm) => {
     setLoading(true);
@@ -57,34 +50,18 @@ export default function AdminLogin() {
       }
 
       localStorage.setItem('pius_admin_token', token);
-
-      if (localStorage.getItem('pius_admin_token') !== token) {
-        throw new Error('Browser nije uspio sacuvati admin sesiju. Ocistite cache ili probajte drugi browser.');
-      }
-
       localStorage.setItem('pius_admin_session', JSON.stringify({
         ...response.data.user,
         loginTime: new Date().toISOString(),
       }));
 
-      try {
-        await getMe({ skipAuthRedirect: true });
-      } catch (verifyError: any) {
-        localStorage.removeItem('pius_admin_token');
-        localStorage.removeItem('pius_admin_session');
+      await getMe({ skipAuthRedirect: true });
 
-        const status = verifyError.response?.status;
-        const message = verifyError.response?.data?.message;
-
-        throw new Error(
-          status === 401
-            ? 'Login je prosao, ali server nije prihvatio token za admin sesiju.'
-            : message || 'Login je prosao, ali provjera admin sesije nije uspjela.'
-        );
-      }
-
-      navigate('/admin');
+      window.location.href = '/admin';
     } catch (err: any) {
+      localStorage.removeItem('pius_admin_token');
+      localStorage.removeItem('pius_admin_session');
+
       setError(
         err.response?.data?.errors?.email?.[0] ||
         err.response?.data?.message ||
@@ -104,7 +81,6 @@ export default function AdminLogin() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-gray-900 border border-pius/30 rounded-2xl shadow-2xl p-8"
         >
-          {/* Header */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-pius/20 border border-pius rounded-full flex items-center justify-center mx-auto mb-4">
               <Lock className="h-8 w-8 text-pius" />
@@ -115,7 +91,6 @@ export default function AdminLogin() {
             <p className="text-gray-400">Prijavite se za pristup admin panelu</p>
           </div>
 
-          {/* Login Form */}
           <form
             noValidate
             onSubmit={(event) => {
@@ -137,6 +112,7 @@ export default function AdminLogin() {
               </label>
               <input
                 type="email"
+                autoComplete="email"
                 {...register('email', { required: 'Email je obavezan' })}
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-pius text-white"
                 placeholder="info@pius-academy.com"
@@ -159,7 +135,8 @@ export default function AdminLogin() {
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  {...register('password', { required: 'Lozinka je obavezna' })}
+                  autoComplete="current-password"
+                  {...register('password', { required: 'Lozinka je obavezana' })}
                   className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-pius text-white pr-12"
                   placeholder="Unesite lozinku"
                 />

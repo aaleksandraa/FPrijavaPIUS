@@ -27,6 +27,17 @@ export default function AdminLogin() {
       sessionStorage.removeItem('pius_admin_auth_error');
     }
 
+    const email = params.get('email');
+    const token = params.get('token');
+
+    if (email && token) {
+      navigate(
+        `/admin/reset-password?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`,
+        { replace: true }
+      );
+      return;
+    }
+
     if (params.has('email') || params.has('password') || params.has('admin')) {
       navigate('/admin/login', { replace: true });
     }
@@ -99,7 +110,7 @@ export default function AdminLogin() {
           </div>
 
           {/* Login Form */}
-          <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {error && (
               <div className="bg-red-900/20 border border-red-700 rounded-lg p-3 text-red-300 text-sm">
                 {error}

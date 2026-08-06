@@ -23,8 +23,7 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    if (params.get('admin') === 'true' || params.has('email') || params.has('password')) {
+    if (location.pathname.startsWith('/admin') || new URLSearchParams(location.search).get('admin') === 'true') {
       setIsAdmin(true);
     }
   }, [location]);

@@ -46,7 +46,7 @@ export default function AdminForgotPassword() {
             <p className="text-gray-400">Unesite admin email adresu.</p>
           </div>
 
-          <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {message && (
               <div className="bg-green-900/20 border border-green-700 rounded-lg p-3 text-green-300 text-sm">
                 {message}

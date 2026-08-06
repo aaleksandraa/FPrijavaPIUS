@@ -34,6 +34,8 @@ export default function AdminResetPassword() {
 
     try {
       const response = await resetPassword(email, token, data.password, data.password_confirmation);
+      localStorage.removeItem('pius_admin_token');
+      localStorage.removeItem('pius_admin_session');
       setMessage(response.data.message || 'Lozinka je uspjesno promijenjena.');
     } catch (err: any) {
       setError(
@@ -62,7 +64,7 @@ export default function AdminResetPassword() {
             <p className="text-gray-400">Postavite novu admin lozinku.</p>
           </div>
 
-          <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {!hasResetData && (
               <div className="bg-red-900/20 border border-red-700 rounded-lg p-3 text-red-300 text-sm">
                 Link za reset lozinke nije potpun.

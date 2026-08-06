@@ -102,7 +102,7 @@ export const logout = () => api.post('/auth/logout');
 export const getMe = (config?: Record<string, any>) => api.get('/auth/me', config);
 
 export const forgotPassword = (email: string) =>
-  api.post('/auth/forgot-password', { email });
+  api.post('/auth/forgot-password', { email }, { skipAuthRedirect: true } as any);
 
 export const resetPassword = (
   email: string,
@@ -110,12 +110,16 @@ export const resetPassword = (
   password: string,
   passwordConfirmation: string
 ) =>
-  api.post('/auth/reset-password', {
-    email,
-    token,
-    password,
-    password_confirmation: passwordConfirmation,
-  });
+  api.post(
+    '/auth/reset-password',
+    {
+      email,
+      token,
+      password,
+      password_confirmation: passwordConfirmation,
+    },
+    { skipAuthRedirect: true } as any
+  );
 
 // Students
 export const getStudents = (params?: Record<string, string>) =>

@@ -21,15 +21,16 @@ export default function AdminLayout() {
       return;
     }
 
-    getMe()
+    getMe({ skipAuthRedirect: true })
       .then(res => setAdmin(res.data))
       .catch(() => {
         localStorage.removeItem('pius_admin_token');
+        localStorage.removeItem('pius_admin_session');
         sessionStorage.setItem(
           'pius_admin_auth_error',
           'Admin token postoji, ali ga server nije prihvatio.'
         );
-        navigate('/admin/login');
+        navigate('/admin/login', { replace: true });
       })
       .finally(() => setLoading(false));
   }, [navigate]);

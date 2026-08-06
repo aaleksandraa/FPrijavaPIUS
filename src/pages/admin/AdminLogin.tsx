@@ -38,7 +38,8 @@ export default function AdminLogin() {
       return;
     }
 
-    if (params.has('email') || params.has('password') || params.has('admin')) {
+    // Strip only leaked password/admin flags from URL (GET form submit puts credentials in query string)
+    if (params.has('password') || params.get('admin') === 'true') {
       navigate('/admin/login', { replace: true });
     }
   }, [navigate]);
@@ -84,7 +85,12 @@ export default function AdminLogin() {
 
       navigate('/admin');
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Neispravni podaci za prijavu.');
+      setError(
+        err.response?.data?.errors?.email?.[0] ||
+        err.response?.data?.message ||
+        err.message ||
+        'Neispravni podaci za prijavu.'
+      );
     } finally {
       setLoading(false);
     }
@@ -110,7 +116,14 @@ export default function AdminLogin() {
           </div>
 
           {/* Login Form */}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleSubmit(onSubmit)(event);
+            }}
+            className="space-y-6"
+          >
             {error && (
               <div className="bg-red-900/20 border border-red-700 rounded-lg p-3 text-red-300 text-sm">
                 {error}
@@ -163,12 +176,10 @@ export default function AdminLogin() {
               )}
             </div>
 
-            <motion.button
+            <button
               type="submit"
               disabled={loading}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full bg-gradient-to-r from-pius to-pius-dark text-black py-3 rounded-lg font-bold disabled:opacity-50 flex items-center justify-center"
+              className="w-full bg-gradient-to-r from-pius to-pius-dark text-black py-3 rounded-lg font-bold disabled:opacity-50 flex items-center justify-center transition-transform hover:scale-[1.02] active:scale-[0.98]"
             >
               {loading ? (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-black" />
@@ -178,7 +189,7 @@ export default function AdminLogin() {
                   Prijavite se
                 </>
               )}
-            </motion.button>
+            </button>
           </form>
 
           <div className="mt-8 pt-6 border-t border-gray-800 text-center">

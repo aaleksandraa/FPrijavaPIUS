@@ -69,19 +69,28 @@ api.interceptors.response.use(
       });
       
       if (error.response?.status === 401 && !error.config?.skipAuthRedirect) {
+        const isAuthPage = /^\/admin\/(login|forgot-password|reset-password)\/?$/.test(
+          window.location.pathname
+        );
+
         safeAPICall(
           () => {
             localStorage.removeItem('pius_admin_token');
             localStorage.removeItem('pius_admin_session');
-            sessionStorage.setItem(
-              'pius_admin_auth_error',
-              'Sesija nije potvrdjena na serveru. Prijavite se ponovo.'
-            );
+            if (!isAuthPage) {
+              sessionStorage.setItem(
+                'pius_admin_auth_error',
+                'Sesija nije potvrdjena na serveru. Prijavite se ponovo.'
+              );
+            }
           },
           undefined,
           'localStorage.removeItem'
         );
-        window.location.href = '/admin/login';
+
+        if (!isAuthPage) {
+          window.location.href = '/admin/login';
+        }
       }
     } catch (handlingError) {
       console.error('❌ Error in error handler:', handlingError);
@@ -95,7 +104,7 @@ export default api;
 
 // Auth
 export const login = (email: string, password: string) =>
-  api.post('/auth/login', { email, password });
+  api.post('/auth/login', { email, password }, { skipAuthRedirect: true } as any);
 
 export const logout = () => api.post('/auth/logout');
 

@@ -93,10 +93,7 @@ export default function AdminLogin() {
 
           <form
             noValidate
-            onSubmit={(event) => {
-              event.preventDefault();
-              void handleSubmit(onSubmit)(event);
-            }}
+            onSubmit={handleSubmit(onSubmit)}
             className="space-y-6"
           >
             {error && (
@@ -154,8 +151,9 @@ export default function AdminLogin() {
             </div>
 
             <button
-              type="submit"
+              type="button"
               disabled={loading}
+              onClick={handleSubmit(onSubmit)}
               className="w-full bg-gradient-to-r from-pius to-pius-dark text-black py-3 rounded-lg font-bold disabled:opacity-50 flex items-center justify-center transition-transform hover:scale-[1.02] active:scale-[0.98]"
             >
               {loading ? (

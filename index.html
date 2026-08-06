@@ -22,34 +22,6 @@
     
     <!-- Safari-specific fixes -->
     <script>
-      // Fix for Safari's passive event listener warning
-      (function() {
-        if (typeof EventTarget !== "undefined") {
-          let supportsPassive = false;
-          try {
-            const opts = Object.defineProperty({}, 'passive', {
-              get: function() { supportsPassive = true; }
-            });
-            window.addEventListener("test", null, opts);
-            window.removeEventListener("test", null, opts);
-          } catch (e) {}
-          
-          if (supportsPassive) {
-            const addEvent = EventTarget.prototype.addEventListener;
-            EventTarget.prototype.addEventListener = function(type, listener, options) {
-              const usesListenerOptions = typeof options === 'object' && options !== null;
-              const useCapture = usesListenerOptions ? options.capture : options;
-              
-              options = usesListenerOptions ? options : {};
-              options.passive = options.passive !== undefined ? options.passive : true;
-              options.capture = useCapture !== undefined ? useCapture : false;
-              
-              addEvent.call(this, type, listener, options);
-            };
-          }
-        }
-      })();
-      
       // Fix for Safari's localStorage issues
       try {
         localStorage.setItem('test', 'test');

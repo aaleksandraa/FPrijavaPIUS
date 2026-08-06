@@ -31,7 +31,7 @@ export const applySafariFixes = () => {
   // Fix 2: Prevent zoom on input focus (already handled in meta viewport)
   // Maximum scale is set in index.html
 
-  // Fix 3: Disable zoom on double tap
+  // Fix 3: Disable zoom on double tap (only when explicitly non-passive)
   let lastTouchEnd = 0;
   document.addEventListener('touchend', (event) => {
     const now = Date.now();
@@ -40,23 +40,6 @@ export const applySafariFixes = () => {
     }
     lastTouchEnd = now;
   }, { passive: false });
-
-  // Fix 4: Fix for Safari's passive event listener warning
-  const supportsPassive = (() => {
-    let support = false;
-    try {
-      const opts = Object.defineProperty({}, 'passive', {
-        get: () => { support = true; }
-      });
-      window.addEventListener('test', null as any, opts);
-      window.removeEventListener('test', null as any, opts);
-    } catch (e) {}
-    return support;
-  })();
-
-  if (supportsPassive) {
-    console.log('✅ Passive event listeners supported');
-  }
 
   // Fix 5: localStorage fallback
   try {

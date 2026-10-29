@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircle, User, Building, FileText, Loader2 } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
-import api from '../lib/api';
+import axios from 'axios';
+import api, { getPackageBySlug } from '../lib/api';
 import type { Package as PackageType } from '../types';
 
 export default function CourseRegistrationPage() {
@@ -13,7 +14,13 @@ export default function CourseRegistrationPage() {
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [hasSignature, setHasSignature] = useState(false);
   const signatureRef = useRef<SignatureCanvas>(null);
+  const submittingRef = useRef(false);
+  const registeredStudentId = useRef<string | null>(null);
 
   const [formData, setFormData] = useState({
     first_name: '', last_name: '', email: '', phone: '', address: '', postal_code: '', city: '', country: 'Österreich', id_document_number: '',
@@ -21,90 +28,112 @@ export default function CourseRegistrationPage() {
   });
 
   useEffect(() => {
+    let cancelled = false;
     const loadPackage = async () => {
+      setLoading(true);
+      setLoadError('');
+      setPkg(null);
+      setStep(1);
+      setHasSignature(false);
+      registeredStudentId.current = null;
       try {
-        const res = await api.get(`/packages/slug/${slug}`);
-        setPkg(res.data);
+        if (!slug) throw new Error('Nedostaje oznaka kursa.');
+        const res = await getPackageBySlug(slug);
+        if (!res.data || typeof res.data !== 'object' || !res.data.id || !res.data.slug) {
+          throw new Error('Neispravan odgovor servera.');
+        }
+        if (!cancelled) setPkg(res.data);
       } catch (err) {
         console.error(err);
-        navigate('/');
+        if (!cancelled) {
+          setLoadError(axios.isAxiosError(err) && err.response?.status === 404
+            ? 'Kurs nije pronađen. Provjerite link za upis ili kontaktirajte podršku.'
+            : 'Kurs trenutno nije moguće učitati. Provjerite internet vezu i pokušajte ponovo.');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    if (slug) loadPackage();
-  }, [slug, navigate]);
+    void loadPackage();
+    return () => { cancelled = true; };
+  }, [slug, loadAttempt]);
+
+  useEffect(() => {
+    setSubmitError('');
+    if (step !== 3) setHasSignature(false);
+  }, [step]);
+
+  const contractTemplate = formData.entity_type === 'company'
+    ? pkg?.contract_template_company
+    : pkg?.contract_template_individual;
 
   const handleSubmit = async () => {
-    if (!pkg) return;
+    if (!pkg || submittingRef.current) return;
+    setSubmitError('');
+    if (pkg.has_contract && !contractTemplate) {
+      setSubmitError('Ugovor nije definisan za ovaj tip lica. Molimo kontaktirajte podršku.');
+      return;
+    }
+    if (pkg.has_contract && (!signatureRef.current || signatureRef.current.isEmpty())) {
+      setSubmitError('Molimo potpišite ugovor prije potvrde.');
+      return;
+    }
+
+    submittingRef.current = true;
     setSubmitting(true);
     try {
-      // Create student
-      const studentRes = await api.post('/students', {
-        ...formData,
-        package_type: pkg.slug,
-        payment_method: pkg.payment_type === 'installments' ? 'installments' : 'full',
-        status: 'enrolled',
-        enrolled_at: new Date().toISOString(),
-      });
+      // Retain the student after a contract error so retrying doesn't register
+      // the same person twice.
+      if (!registeredStudentId.current) {
+        const studentRes = await api.post('/students', {
+          ...formData,
+          package_type: pkg.slug,
+          payment_method: pkg.payment_type === 'installments' ? 'installments' : 'full',
+        });
+        registeredStudentId.current = studentRes.data.id;
+      }
 
       // If has contract, create contract
       if (pkg.has_contract && signatureRef.current) {
         const signatureData = signatureRef.current.toDataURL();
-        
-        // Use appropriate template based on entity type
-        const template = formData.entity_type === 'company' 
-          ? pkg.contract_template_company 
-          : pkg.contract_template_individual;
-        
-        if (!template) {
-          console.error('Contract template not found for entity type:', formData.entity_type);
-          alert('Ugovor nije definisan za ovaj tip lica. Molimo kontaktirajte administratora.');
-          return;
-        }
-        
-        let contractContent = template;
-        contractContent = contractContent
-          .replace(/{ime}/g, formData.first_name)
-          .replace(/{prezime}/g, formData.last_name)
-          .replace(/{email}/g, formData.email)
-          .replace(/{adresa}/g, formData.address)
-          .replace(/{postanskiBroj}/g, formData.postal_code)
-          .replace(/{mjesto}/g, formData.city)
-          .replace(/{grad}/g, formData.city)
-          .replace(/{drzava}/g, formData.country)
-          .replace(/{brojLicnogDokumenta}/g, formData.id_document_number)
-          .replace(/{cijena}/g, `€${Number(pkg.price).toFixed(2)}`)
-          .replace(/{datum}/g, new Date().toLocaleDateString('de-AT'));
-
         await api.post('/contracts', {
-          student_id: studentRes.data.id,
-          contract_type: formData.entity_type,
-          contract_content: contractContent,
+          student_id: registeredStudentId.current,
           signature_data: signatureData,
         });
       }
 
-      navigate('/hvala');
+      navigate('/hvala', { state: { isContract: pkg.has_contract, package: pkg.slug } });
     } catch (err) {
       console.error(err);
+      const data = axios.isAxiosError(err) ? err.response?.data : null;
+      const validationErrors = data?.errors ? Object.values(data.errors).flat().join(' ') : '';
+      setSubmitError(validationErrors || data?.error || data?.message
+        || 'Prijavu nije moguće poslati. Provjerite vezu i pokušajte ponovo.');
     } finally {
       setSubmitting(false);
+      submittingRef.current = false;
     }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <Loader2 className="h-8 w-8 text-pius animate-spin" />
+        <Loader2 aria-label="Učitavanje kursa" className="h-8 w-8 text-pius animate-spin" />
       </div>
     );
   }
 
   if (!pkg) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <p className="text-white">Kurs nije pronađen</p>
+      <div className="min-h-screen bg-black text-white flex items-center justify-center px-4">
+        <div className="max-w-md text-center space-y-4">
+          <h1 className="text-2xl font-bold">Upis na kurs</h1>
+          <p role="alert">{loadError}</p>
+          <button type="button" onClick={() => setLoadAttempt(value => value + 1)} className="bg-pius text-black px-6 py-3 rounded-lg">
+            Pokušaj ponovo
+          </button>
+          <p><a href="mailto:info@pius-academy.com" className="text-pius underline">Kontaktiraj podršku</a></p>
+        </div>
       </div>
     );
   }
@@ -112,6 +141,7 @@ export default function CourseRegistrationPage() {
   return (
     <div className="min-h-screen bg-black text-white">
       <div className="max-w-2xl mx-auto px-4 py-12">
+        {submitError && <p role="alert" className="mb-6 p-4 border border-red-500 rounded-lg text-red-300">{submitError}</p>}
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           {/* Course Image */}
@@ -171,7 +201,7 @@ export default function CourseRegistrationPage() {
 
         {/* Step 1: Form */}
         {step === 1 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
+          <motion.form onSubmit={(event) => { event.preventDefault(); setStep(2); }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
             <div className="flex gap-4 mb-4">
               <button type="button" onClick={() => setFormData({ ...formData, entity_type: 'individual' })} className={`flex-1 py-3 rounded-lg border flex items-center justify-center gap-2 ${formData.entity_type === 'individual' ? 'border-pius bg-pius/10 text-pius' : 'border-gray-700 text-gray-400'}`}>
                 <User className="h-5 w-5" />Fizičko lice
@@ -183,50 +213,50 @@ export default function CourseRegistrationPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Ime *</label>
-                <input type="text" value={formData.first_name} onChange={(e) => setFormData({ ...formData, first_name: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
+                <label htmlFor="first_name" className="block text-sm text-gray-400 mb-1">Ime *</label>
+                <input id="first_name" type="text" value={formData.first_name} onChange={(e) => setFormData({ ...formData, first_name: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Prezime *</label>
-                <input type="text" value={formData.last_name} onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
+                <label htmlFor="last_name" className="block text-sm text-gray-400 mb-1">Prezime *</label>
+                <input id="last_name" type="text" value={formData.last_name} onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Email *</label>
-                <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
+                <label htmlFor="email" className="block text-sm text-gray-400 mb-1">Email *</label>
+                <input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Telefon *</label>
-                <input type="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
+                <label htmlFor="phone" className="block text-sm text-gray-400 mb-1">Telefon *</label>
+                <input id="phone" type="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Adresa *</label>
-              <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
+              <label htmlFor="address" className="block text-sm text-gray-400 mb-1">Adresa *</label>
+              <input id="address" type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Poštanski broj *</label>
-                <input type="text" value={formData.postal_code} onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
+                <label htmlFor="postal_code" className="block text-sm text-gray-400 mb-1">Poštanski broj *</label>
+                <input id="postal_code" type="text" value={formData.postal_code} onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Grad *</label>
-                <input type="text" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
+                <label htmlFor="city" className="block text-sm text-gray-400 mb-1">Grad *</label>
+                <input id="city" type="text" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Država *</label>
-                <input type="text" value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
+                <label htmlFor="country" className="block text-sm text-gray-400 mb-1">Država *</label>
+                <input id="country" type="text" value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Broj ličnog dokumenta *</label>
-                <input type="text" value={formData.id_document_number} onChange={(e) => setFormData({ ...formData, id_document_number: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
+                <label htmlFor="id_document_number" className="block text-sm text-gray-400 mb-1">Broj ličnog dokumenta *</label>
+                <input id="id_document_number" type="text" value={formData.id_document_number} onChange={(e) => setFormData({ ...formData, id_document_number: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
               </div>
             </div>
 
@@ -234,39 +264,39 @@ export default function CourseRegistrationPage() {
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Naziv firme *</label>
-                    <input type="text" value={formData.company_name} onChange={(e) => setFormData({ ...formData, company_name: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
+                    <label htmlFor="company_name" className="block text-sm text-gray-400 mb-1">Naziv firme *</label>
+                    <input id="company_name" type="text" value={formData.company_name} onChange={(e) => setFormData({ ...formData, company_name: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" required />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">PDV broj</label>
-                    <input type="text" value={formData.vat_number} onChange={(e) => setFormData({ ...formData, vat_number: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
+                    <label htmlFor="vat_number" className="block text-sm text-gray-400 mb-1">PDV broj</label>
+                    <input id="vat_number" type="text" value={formData.vat_number} onChange={(e) => setFormData({ ...formData, vat_number: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Adresa firme</label>
-                  <input type="text" value={formData.company_address} onChange={(e) => setFormData({ ...formData, company_address: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
+                  <label htmlFor="company_address" className="block text-sm text-gray-400 mb-1">Adresa firme</label>
+                  <input id="company_address" type="text" value={formData.company_address} onChange={(e) => setFormData({ ...formData, company_address: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Poštanski broj</label>
-                    <input type="text" value={formData.company_postal_code} onChange={(e) => setFormData({ ...formData, company_postal_code: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
+                    <label htmlFor="company_postal_code" className="block text-sm text-gray-400 mb-1">Poštanski broj</label>
+                    <input id="company_postal_code" type="text" value={formData.company_postal_code} onChange={(e) => setFormData({ ...formData, company_postal_code: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Grad</label>
-                    <input type="text" value={formData.company_city} onChange={(e) => setFormData({ ...formData, company_city: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
+                    <label htmlFor="company_city" className="block text-sm text-gray-400 mb-1">Grad</label>
+                    <input id="company_city" type="text" value={formData.company_city} onChange={(e) => setFormData({ ...formData, company_city: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Država</label>
-                  <input type="text" value={formData.company_country} onChange={(e) => setFormData({ ...formData, company_country: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
+                  <label htmlFor="company_country" className="block text-sm text-gray-400 mb-1">Država</label>
+                  <input id="company_country" type="text" value={formData.company_country} onChange={(e) => setFormData({ ...formData, company_country: e.target.value })} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
                 </div>
               </>
             )}
 
-            <button type="button" onClick={() => setStep(2)} disabled={!formData.first_name || !formData.last_name || !formData.email || !formData.phone || !formData.address || !formData.postal_code || !formData.city || !formData.id_document_number} className="w-full py-3 bg-pius hover:bg-pius-dark text-black rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed mt-4">
+            <button type="submit" className="w-full py-3 bg-pius hover:bg-pius-dark text-black rounded-lg font-medium mt-4">
               Nastavi
             </button>
-          </motion.div>
+          </motion.form>
         )}
 
         {/* Step 2: Review */}
@@ -370,14 +400,19 @@ export default function CourseRegistrationPage() {
             <div>
               <label className="block text-sm text-gray-400 mb-2">Vaš potpis *</label>
               <div className="bg-white rounded-lg overflow-hidden">
-                <SignatureCanvas ref={signatureRef} canvasProps={{ className: 'w-full h-40' }} />
+                <SignatureCanvas
+                  ref={signatureRef}
+                  clearOnResize={false}
+                  onEnd={() => setHasSignature(!signatureRef.current?.isEmpty())}
+                  canvasProps={{ className: 'signature-canvas w-full h-40', 'aria-label': 'Potpis ugovora' }}
+                />
               </div>
-              <button type="button" onClick={() => signatureRef.current?.clear()} className="text-sm text-gray-400 hover:text-white mt-2">Obriši potpis</button>
+              <button type="button" disabled={submitting} onClick={() => { signatureRef.current?.clear(); setHasSignature(false); }} className="text-sm text-gray-400 hover:text-white mt-2">Obriši potpis</button>
             </div>
 
             <div className="flex gap-3">
-              <button type="button" onClick={() => setStep(2)} className="flex-1 py-3 border border-gray-600 text-gray-300 hover:bg-gray-800 rounded-lg font-medium">Nazad</button>
-              <button type="button" onClick={handleSubmit} disabled={submitting || signatureRef.current?.isEmpty()} className="flex-1 py-3 bg-pius hover:bg-pius-dark text-black rounded-lg font-medium disabled:opacity-50">
+              <button type="button" onClick={() => setStep(2)} disabled={submitting || registeredStudentId.current !== null} className="flex-1 py-3 border border-gray-600 text-gray-300 hover:bg-gray-800 rounded-lg font-medium">Nazad</button>
+              <button type="button" onClick={handleSubmit} disabled={submitting || !hasSignature || !contractTemplate} className="flex-1 py-3 bg-pius hover:bg-pius-dark text-black rounded-lg font-medium disabled:opacity-50">
                 {submitting ? 'Slanje...' : 'Potpiši i potvrdi'}
               </button>
             </div>

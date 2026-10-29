@@ -30,6 +30,9 @@ export interface Student {
   paid_installments_count?: number;
   total_installments?: number;
   payment_status?: string;
+  paid_amount?: number;
+  course_total?: number;
+  remaining_amount?: number;
 }
 
 export interface Contract {

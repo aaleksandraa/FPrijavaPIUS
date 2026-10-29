@@ -1,3 +1,4 @@
+import { localStore } from '../lib/storage';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Star, Users, Calendar, Award, Clock, CheckCircle, Sparkles, Loader2 } from 'lucide-react';
@@ -23,8 +24,8 @@ export default function LandingPage() {
       
       // Try to load from cache first
       try {
-        const cachedData = localStorage.getItem(CACHE_KEY);
-        const cachedTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+        const cachedData = localStore.getItem(CACHE_KEY);
+        const cachedTimestamp = localStore.getItem(CACHE_TIMESTAMP_KEY);
         
         if (cachedData && cachedTimestamp) {
           const age = Date.now() - parseInt(cachedTimestamp);
@@ -121,8 +122,8 @@ export default function LandingPage() {
           
           // Save to cache
           try {
-            localStorage.setItem(CACHE_KEY, JSON.stringify(piusPackages));
-            localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+            localStore.setItem(CACHE_KEY, JSON.stringify(piusPackages));
+            localStore.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
             console.log('💾 Saved to cache');
           } catch (err) {
             console.warn('Failed to save to cache:', err);

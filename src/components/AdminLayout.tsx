@@ -1,3 +1,4 @@
+import { localStore, sessionStore } from '../lib/storage';
 import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { Users, FileText, Settings, LogOut, LayoutDashboard, Package, Receipt, Layout } from 'lucide-react';
@@ -14,10 +15,10 @@ export default function AdminLayout() {
     let cancelled = false;
 
     const verifySession = async () => {
-      const token = localStorage.getItem('pius_admin_token');
+      const token = localStore.getItem('pius_admin_token');
 
       if (!token) {
-        sessionStorage.setItem(
+        sessionStore.setItem(
           'pius_admin_auth_error',
           'Admin token nije pronadjen u browseru. Prijavite se ponovo.'
         );
@@ -31,9 +32,9 @@ export default function AdminLayout() {
           setAdmin(response.data);
         }
       } catch {
-        localStorage.removeItem('pius_admin_token');
-        localStorage.removeItem('pius_admin_session');
-        sessionStorage.setItem(
+        localStore.removeItem('pius_admin_token');
+        localStore.removeItem('pius_admin_session');
+        sessionStore.setItem(
           'pius_admin_auth_error',
           'Admin token postoji, ali ga server nije prihvatio. Resetujte lozinku i prijavite se ponovo.'
         );
@@ -56,8 +57,8 @@ export default function AdminLayout() {
     try {
       await logout();
     } catch {}
-    localStorage.removeItem('pius_admin_token');
-    localStorage.removeItem('pius_admin_session');
+    localStore.removeItem('pius_admin_token');
+    localStore.removeItem('pius_admin_session');
     navigate('/admin/login');
   };
 

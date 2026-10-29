@@ -1,221 +1,57 @@
-import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, existsSync } from 'fs';
-import { join } from 'path';
-import * as fc from 'fast-check';
+// @vitest-environment node
+import { describe, expect, it } from 'vitest';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { createContext, runInContext } from 'node:vm';
+import { transformSync } from 'esbuild';
 
-/**
- * Property test for polyfill inclusion
- * Property 2: Polyfill Inclusion for Modern APIs
- * Validates: Requirements 1.2, 2.3
- * 
- * For any modern JavaScript API used in the source code (ES2016+),
- * the legacy bundle SHALL include a corresponding polyfill implementation.
- */
-describe('Property 2: Polyfill Inclusion for Modern APIs', () => {
-  const distPath = join(process.cwd(), 'dist');
-  const assetsPath = join(distPath, 'assets');
-  const srcPath = join(process.cwd(), 'src');
-  const viteConfigPath = join(process.cwd(), 'vite.config.ts');
+// Exercise the generated code: checking for a literal list in vite.config.ts
+// misses usage-based polyfills and says nothing about what ships to Safari.
+describe.each(['modern', 'legacy'])('%s Safari polyfill bundle', kind => {
+  const assets = join(process.cwd(), 'dist/assets');
+  const file = readdirSync(assets).find(name =>
+    name.startsWith('polyfills-') && name.endsWith('.js')
+    && name.includes('-legacy-') === (kind === 'legacy'))!;
 
-  /**
-   * Mapping of modern APIs to their core-js polyfill names
-   */
-  const apiToPolyfillMap: Record<string, string> = {
-    'Promise.allSettled': 'es.promise.all-settled',
-    'Promise.finally': 'es.promise.finally',
-    'queueMicrotask': 'web.queue-microtask',
-    'Object.fromEntries': 'es.object.from-entries',
-    'Object.entries': 'es.object.entries',
-    'Object.values': 'es.object.values',
-    'Array.prototype.flat': 'es.array.flat',
-    'Array.prototype.flatMap': 'es.array.flat-map',
-    'Array.prototype.includes': 'es.array.includes',
-    'Array.prototype.find': 'es.array.find',
-    'String.prototype.includes': 'es.string.includes',
-    'String.prototype.startsWith': 'es.string.starts-with',
-    'String.prototype.endsWith': 'es.string.ends-with'
-  };
-
-  /**
-   * Helper function to get Vite configuration polyfills
-   */
-  function getViteConfigPolyfills(): string[] {
-    if (!existsSync(viteConfigPath)) {
-      throw new Error('vite.config.ts not found');
+  it('restores the APIs missing from the target Safari version', async () => {
+    expect(file).toBeDefined();
+    const context = createContext({ setTimeout, clearTimeout, console, DOMException, module: { exports: {} } });
+    runInContext(`
+      this.self = this;
+      delete Promise.allSettled;
+      delete Object.fromEntries;
+      delete this.queueMicrotask;
+    `, context);
+    if (kind === 'legacy') {
+      runInContext(`
+        delete Promise.prototype.finally;
+        delete Array.prototype.flat;
+        delete Array.prototype.flatMap;
+        delete this.globalThis;
+      `, context);
     }
-    
-    const configContent = readFileSync(viteConfigPath, 'utf-8');
-    
-    // Extract polyfills array from legacy plugin configuration
-    const polyfillsMatch = configContent.match(/polyfills:\s*\[([\s\S]*?)\]/);
-    if (!polyfillsMatch) {
-      return [];
+    // Convert only the module wrapper so it can execute in an isolated VM.
+    // The exported Vite feature guard is intentionally never called here.
+    const code = transformSync(readFileSync(join(assets, file), 'utf8'), {
+      format: 'cjs', target: 'es2018', logLevel: 'silent',
+    }).code;
+    runInContext(code, context);
+
+    expect(runInContext('typeof queueMicrotask', context)).toBe('function');
+    expect(runInContext('Object.fromEntries([["course", "eyeliner-lips"]]).course', context)).toBe('eyeliner-lips');
+    const settled = await runInContext(`Promise.allSettled([
+      Promise.resolve('registered'), Promise.reject('offline')
+    ]).then(results => JSON.stringify(results))`, context);
+    expect(JSON.parse(settled)).toEqual([
+      { status: 'fulfilled', value: 'registered' },
+      { status: 'rejected', reason: 'offline' },
+    ]);
+    expect(await runInContext('new Promise(resolve => queueMicrotask(() => resolve("ready")))', context)).toBe('ready');
+    if (kind === 'legacy') {
+      expect(runInContext('JSON.stringify([1, [2]].flat())', context)).toBe('[1,2]');
+      expect(runInContext('JSON.stringify([1, 2].flatMap(n => [n, n]))', context)).toBe('[1,1,2,2]');
+      expect(runInContext('typeof Promise.prototype.finally', context)).toBe('function');
+      expect(runInContext('typeof globalThis', context)).toBe('object');
     }
-    
-    // Extract individual polyfill strings
-    const polyfillsSection = polyfillsMatch[1];
-    const polyfillMatches = polyfillsSection.match(/'([^']+)'/g);
-    
-    if (!polyfillMatches) {
-      return [];
-    }
-    
-    return polyfillMatches.map(match => match.replace(/'/g, ''));
-  }
-
-  /**
-   * Helper function to scan source code for modern API usage
-   */
-  function scanSourceForModernAPIs(dirPath: string, apis: string[]): Set<string> {
-    const foundAPIs = new Set<string>();
-    
-    try {
-      const files = readdirSync(dirPath, { withFileTypes: true });
-      
-      for (const file of files) {
-        const fullPath = join(dirPath, file.name);
-        
-        if (file.isDirectory() && file.name !== 'node_modules' && file.name !== 'dist') {
-          const nestedAPIs = scanSourceForModernAPIs(fullPath, apis);
-          nestedAPIs.forEach(api => foundAPIs.add(api));
-        } else if (file.isFile() && (file.name.endsWith('.ts') || file.name.endsWith('.tsx') || file.name.endsWith('.js'))) {
-          try {
-            const content = readFileSync(fullPath, 'utf-8');
-            
-            for (const api of apis) {
-              if (content.includes(api)) {
-                foundAPIs.add(api);
-              }
-            }
-          } catch (err) {
-            // Skip files that can't be read
-          }
-        }
-      }
-    } catch (err) {
-      // Directory doesn't exist or can't be read
-    }
-    
-    return foundAPIs;
-  }
-
-  /**
-   * Helper function to verify legacy bundle exists
-   */
-  function verifyLegacyBundleExists(): boolean {
-    if (!existsSync(assetsPath)) {
-      return false;
-    }
-    
-    const files = readdirSync(assetsPath);
-    return files.some(f => f.includes('polyfills-legacy') || (f.includes('polyfills') && f.endsWith('.js')));
-  }
-
-  it('should include polyfills for all modern APIs used in source code', () => {
-    fc.assert(
-      fc.property(
-        fc.constantFrom(
-          'Promise.allSettled',
-          'Promise.finally',
-          'queueMicrotask',
-          'Object.fromEntries',
-          'Object.entries',
-          'Object.values',
-          'Array.prototype.flat',
-          'Array.prototype.flatMap',
-          'Array.prototype.includes',
-          'Array.prototype.find',
-          'String.prototype.includes',
-          'String.prototype.startsWith',
-          'String.prototype.endsWith'
-        ),
-        (modernAPI) => {
-          // Get the configured polyfills from Vite config
-          const configuredPolyfills = getViteConfigPolyfills();
-          
-          // Get the expected polyfill name for this API
-          const expectedPolyfill = apiToPolyfillMap[modernAPI];
-          
-          // Verify the polyfill is configured
-          const hasPolyfill = configuredPolyfills.includes(expectedPolyfill);
-          
-          expect(hasPolyfill).toBe(true);
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  it('should scan source code and verify polyfills for found modern APIs', () => {
-    const modernAPIs = [
-      'Promise.allSettled',
-      'Promise.finally',
-      'queueMicrotask',
-      'Object.fromEntries',
-      'Object.entries',
-      'Object.values',
-      'Array.prototype.flat',
-      'Array.prototype.flatMap',
-      'Array.prototype.includes',
-      'Array.prototype.find',
-      'String.prototype.includes',
-      'String.prototype.startsWith',
-      'String.prototype.endsWith'
-    ];
-    
-    // Scan source code for modern API usage
-    const foundAPIs = scanSourceForModernAPIs(srcPath, modernAPIs);
-    
-    // Get configured polyfills
-    const configuredPolyfills = getViteConfigPolyfills();
-    
-    // For each found API, verify polyfill is configured
-    foundAPIs.forEach(api => {
-      const expectedPolyfill = apiToPolyfillMap[api];
-      
-      const hasPolyfill = configuredPolyfills.includes(expectedPolyfill);
-      
-      expect(hasPolyfill).toBe(true);
-    });
-  });
-
-  it('should include core ES2015+ polyfills regardless of usage', () => {
-    fc.assert(
-      fc.property(
-        fc.constantFrom(
-          'es.promise',
-          'es.object.assign',
-          'es.symbol'
-        ),
-        (corePolyfill) => {
-          const configuredPolyfills = getViteConfigPolyfills();
-          
-          // These core polyfills should always be configured for Safari 11-12
-          const hasPolyfill = configuredPolyfills.includes(corePolyfill);
-          
-          expect(hasPolyfill).toBe(true);
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  it('should verify queueMicrotask polyfill specifically (critical for Safari 11)', () => {
-    const configuredPolyfills = getViteConfigPolyfills();
-    
-    // queueMicrotask is critical for Safari 11-12 compatibility
-    expect(configuredPolyfills).toContain('web.queue-microtask');
-  });
-
-  it('should verify Promise.allSettled polyfill specifically (not in Safari < 13)', () => {
-    const configuredPolyfills = getViteConfigPolyfills();
-    
-    // Promise.allSettled is not available in Safari < 13
-    expect(configuredPolyfills).toContain('es.promise.all-settled');
-  });
-
-  it('should verify legacy bundle is generated', () => {
-    // Verify that the build process generates a legacy bundle
-    expect(verifyLegacyBundleExists()).toBe(true);
   });
 });

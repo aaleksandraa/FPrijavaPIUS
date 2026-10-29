@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Filter, Download, Mail, Phone, User, Building, Calendar, X, Eye, MapPin, CreditCard, FileText, CheckCircle, Clock, Trash2, Ban, Edit, Plus } from 'lucide-react';
 import { getStudents, getContracts, downloadContractPdf, updateStudent, deleteStudent } from '../../lib/api';
@@ -7,14 +8,18 @@ import AddStudentModal from '../../components/AddStudentModal';
 import EditStudentModal from '../../components/EditStudentModal';
 import AddManualPaymentModal from '../../components/AddManualPaymentModal';
 import type { Student, Contract } from '../../types';
+import { courseName, enrollmentLabel, enrollmentTotals, groupEnrollments, personKey } from '../../lib/enrollments';
 
 export default function AdminStudents() {
+  const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPayment, setFilterPayment] = useState('all');
+  const [filterCourse, setFilterCourse] = useState('all');
+  const [enrollmentSeed, setEnrollmentSeed] = useState<Student | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -28,12 +33,12 @@ export default function AdminStudents() {
 
   // Helper functions for package info
   const getPackageName = (student: Student): string => {
-    return student.package?.name || student.package_type.toUpperCase().replace('-', ' ');
+    return courseName(student);
   };
 
   const getPackagePrice = (student: Student): number => {
     if (!student.package) return 0;
-    const price = student.package.discount_price || student.package.price;
+    const price = student.package.discount_price ?? student.package.price;
     // Ensure we always return a valid number
     const numPrice = typeof price === 'number' ? price : parseFloat(String(price || '0'));
     return isNaN(numPrice) ? 0 : numPrice;
@@ -60,6 +65,7 @@ export default function AdminStudents() {
       
       setStudents(studentsData);
       setContracts(contractsData);
+      setSelectedStudent(previous => previous ? studentsData.find((student: Student) => student.id === previous.id) || null : null);
     } catch (err) {
       console.error('Error loading students:', err);
       setStudents([]);
@@ -138,13 +144,18 @@ export default function AdminStudents() {
       student.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      courseName(student).toLowerCase().includes(searchTerm.toLowerCase()) ||
       (student.company_name && student.company_name.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesStatus = filterStatus === 'all' || student.status === filterStatus;
     const matchesPayment = filterPayment === 'all' || student.payment_method === filterPayment;
 
-    return matchesSearch && matchesStatus && matchesPayment;
+    return matchesSearch && matchesStatus && matchesPayment && (filterCourse === 'all' || student.package_type === filterCourse);
   }) : [];
+
+  const groups = groupEnrollments(students);
+  const selectedEnrollments = selectedStudent ? groups.find(group => group.key === personKey(selectedStudent))?.enrollments || [] : [];
+  const courses = Array.from(new Map(students.map(student => [student.package_type, courseName(student)])).entries());
 
   if (loading) {
     return (
@@ -163,16 +174,23 @@ export default function AdminStudents() {
       {/* Filters */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Studenti</h2>
+          <h2 className="text-lg font-semibold text-white">Polaznici i upisi</h2>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => { setEnrollmentSeed(null); setShowAddModal(true); }}
             className="px-4 py-2 bg-pius hover:bg-pius-dark text-black rounded-lg font-medium flex items-center gap-2 transition-colors"
           >
             <User className="h-4 w-4" />
             Dodaj studenta
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label htmlFor="student-course-filter" className="block text-sm font-medium text-gray-300 mb-2">Kurs</label>
+            <select id="student-course-filter" value={filterCourse} onChange={event => setFilterCourse(event.target.value)} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+              <option value="all">Svi kursevi</option>
+              {courses.map(([slug, name]) => <option key={slug} value={slug}>{name}</option>)}
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               <Search className="inline h-4 w-4 mr-1" />
@@ -221,16 +239,17 @@ export default function AdminStudents() {
       {/* Students Table */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-800">
-          <h2 className="text-lg font-medium">Registrovani studenti ({filteredStudents.length})</h2>
+          <h2 className="text-lg font-medium">Upisi ({filteredStudents.length}) · Polaznici ({groupEnrollments(filteredStudents).length})</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-gray-800">
               <tr>
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Student</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Kurs / upis</th>
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Kontakt</th>
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Tip/Plaćanje</th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Rate</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Plaćanje kursa</th>
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Datum</th>
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Akcije</th>
@@ -255,11 +274,12 @@ export default function AdminStudents() {
                           {student.first_name} {student.last_name}
                         </div>
                         <div className="text-xs text-gray-400">
-                          {getPackageName(student)}
+                          {groups.find(group => group.key === personKey(student))?.enrollments.length || 1} upis(a)
                         </div>
                       </div>
                     </div>
                   </td>
+                  <td className="px-3 py-3"><p className="text-sm text-pius">{courseName(student)}</p><p className="text-xs text-gray-400">#{student.id.slice(-8)}</p></td>
                   <td className="px-3 py-3 whitespace-nowrap">
                     <div className="text-sm text-white flex items-center">
                       <Mail className="h-3 w-3 mr-1 text-gray-400" />
@@ -434,6 +454,20 @@ export default function AdminStudents() {
 
               {/* Modal Content */}
               <div className="p-6 space-y-6">
+                <div className="bg-gray-800/50 rounded-xl p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-pius">Svi upisi polaznika ({selectedEnrollments.length})</h3>
+                  {selectedEnrollments.map(enrollment => {
+                    const totals = enrollmentTotals(enrollment);
+                    return <button key={enrollment.id} onClick={() => setSelectedStudent(enrollment)} className={`w-full text-left p-3 rounded-lg border ${enrollment.id === selectedStudent.id ? 'border-pius bg-pius/10' : 'border-gray-700'}`}>
+                      <p className="text-sm font-medium">{enrollmentLabel(enrollment)}</p>
+                      <p className="text-xs text-gray-400 mt-1">Plaćeno: €{totals.paid.toFixed(2)} · Preostalo: €{totals.remaining.toFixed(2)} · {enrollment.payment_status || 'Bez uplata'}{enrollment.status === 'cancelled' ? ' · Otkazan upis' : ''}</p>
+                    </button>;
+                  })}
+                  <div className="flex flex-wrap gap-3">
+                    <button onClick={() => navigate(`/admin/invoices?enrollment=${encodeURIComponent(selectedStudent.id)}`)} className="text-sm text-pius underline">Nova faktura za ovaj upis</button>
+                    <button onClick={() => { setEnrollmentSeed(selectedStudent); setSelectedStudent(null); setShowAddModal(true); }} className="text-sm text-pius underline">Dodaj upis na drugi kurs</button>
+                  </div>
+                </div>
                 {/* Status Badge */}
                 <div className="flex items-center gap-3">
                   <span className={`inline-flex px-3 py-1.5 text-sm font-semibold rounded-full ${
@@ -441,10 +475,12 @@ export default function AdminStudents() {
                       ? 'bg-green-900/30 text-green-400 border border-green-700'
                       : selectedStudent.status === 'contract_signed'
                       ? 'bg-pius/20 text-pius border border-pius/50'
+                      : selectedStudent.status === 'cancelled'
+                      ? 'bg-red-900/30 text-red-400 border border-red-700'
                       : 'bg-yellow-900/30 text-yellow-400 border border-yellow-700'
                   }`}>
                     {selectedStudent.status === 'enrolled' ? 'Upisan' :
-                     selectedStudent.status === 'contract_signed' ? 'Ugovor potpisan' : 'Završen'}
+                     selectedStudent.status === 'contract_signed' ? 'Ugovor potpisan' : selectedStudent.status === 'cancelled' ? 'Otkazan upis' : 'Završen'}
                   </span>
                   <span className="text-sm text-gray-400">
                     Registrovan: {new Date(selectedStudent.enrolled_at).toLocaleDateString('sr-RS')}
@@ -594,7 +630,7 @@ export default function AdminStudents() {
                   <div className="bg-gray-800/50 rounded-xl p-4">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-semibold text-pius flex items-center gap-2">
-                        <FileText className="h-4 w-4" /> Historija uplata
+                        <FileText className="h-4 w-4" /> Fakture i uplate za ovaj upis
                       </h3>
                       <button
                         onClick={() => {
@@ -655,10 +691,8 @@ export default function AdminStudents() {
                     <div className="mt-4 pt-4 border-t border-gray-700">
                       {(() => {
                         const totalPackagePrice = getPackagePrice(selectedStudent);
-                        const paidAmount = selectedStudent.invoices
-                          .filter(inv => inv.status === 'paid')
-                          .reduce((sum, inv) => sum + Number(inv.total_amount), 0);
-                        const remainingAmount = totalPackagePrice - paidAmount;
+                        const paidAmount = enrollmentTotals(selectedStudent).paid;
+                        const remainingAmount = Math.max(0, totalPackagePrice - paidAmount);
 
                         return (
                           <>
@@ -681,12 +715,22 @@ export default function AdminStudents() {
                   </div>
                 )}
 
+                {!!selectedStudent.payments?.some(payment => !payment.invoice_id) && (
+                  <div className="bg-gray-800/50 rounded-xl p-4 space-y-2">
+                    <h3 className="text-sm font-semibold text-pius">Uplate bez povezane fakture za ovaj upis</h3>
+                    {selectedStudent.payments.filter(payment => !payment.invoice_id).map(payment => <div key={payment.id} className="flex justify-between gap-3 text-sm">
+                      <span>{payment.installment_number}. rata · {payment.paid_at ? new Date(payment.paid_at).toLocaleDateString('de-AT') : 'Bez datuma'}</span>
+                      <span>€{Number(payment.amount).toFixed(2)} · {payment.status === 'paid' ? 'Plaćeno' : 'Na čekanju'}</span>
+                    </div>)}
+                  </div>
+                )}
+
                 {/* No Invoices Message */}
-                {(!selectedStudent.invoices || selectedStudent.invoices.length === 0) && selectedStudent.payment_method === 'installments' && (
+                {(!selectedStudent.invoices || selectedStudent.invoices.length === 0) && (
                   <div className="bg-gray-800/50 rounded-xl p-4">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-semibold text-pius flex items-center gap-2">
-                        <FileText className="h-4 w-4" /> Historija uplata
+                        <FileText className="h-4 w-4" /> Fakture i uplate za ovaj upis
                       </h3>
                       <button
                         onClick={() => {
@@ -786,7 +830,7 @@ export default function AdminStudents() {
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-2">Obriši studenta?</h3>
                 <p className="text-gray-400 mb-6">
-                  Da li ste sigurni da želite obrisati studenta "{studentToDelete.first_name} {studentToDelete.last_name}"?
+                  Da li ste sigurni da želite obrisati upis za kurs "{courseName(studentToDelete)}" polaznika {studentToDelete.first_name} {studentToDelete.last_name}?
                   <br /><span className="text-red-400 text-sm">Ova akcija se ne može poništiti.</span>
                 </p>
                 <div className="flex gap-3">
@@ -832,7 +876,7 @@ export default function AdminStudents() {
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-2">Označi kao otkazano?</h3>
                 <p className="text-gray-400 mb-6">
-                  Da li ste sigurni da želite označiti studenta "{studentToCancel.first_name} {studentToCancel.last_name}" kao otkazanog?
+                  Da li ste sigurni da želite otkazati upis za kurs "{courseName(studentToCancel)}" polaznika {studentToCancel.first_name} {studentToCancel.last_name}?
                 </p>
                 <div className="flex gap-3">
                   <button
@@ -857,6 +901,7 @@ export default function AdminStudents() {
       {/* Add Student Modal */}
       <AddStudentModal
         isOpen={showAddModal}
+        initialStudent={enrollmentSeed}
         onClose={() => setShowAddModal(false)}
         onSuccess={loadData}
       />

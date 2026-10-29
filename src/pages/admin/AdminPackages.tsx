@@ -83,8 +83,9 @@ export default function AdminPackages() {
         setEditingPackage(null);
         setSaving(false);
       }, 100);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      alert(Object.values(err.response?.data?.errors || {}).flat().join(' ') || err.response?.data?.message || 'Kurs nije moguće sačuvati.');
       setSaving(false);
     }
   };
@@ -453,7 +454,15 @@ export default function AdminPackages() {
 
               <div className="mt-4 pt-4 border-t border-gray-700">
                 <p className="text-xs text-gray-500">
-                  Link za upis: <code className="bg-gray-800 px-2 py-0.5 rounded">/upis/{pkg.slug}</code>
+                  Link za upis:{' '}
+                  <a
+                    href={`${window.location.origin}/upis/${encodeURIComponent(pkg.slug)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-pius underline break-all"
+                  >
+                    {`${window.location.origin}/upis/${encodeURIComponent(pkg.slug)}`}
+                  </a>
                 </p>
               </div>
             </div>

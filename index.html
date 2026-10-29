@@ -18,26 +18,6 @@
     <!-- Safari-specific meta tags -->
     <meta name="apple-mobile-web-app-title" content="PIUS Academy" />
     
-    <!-- Polyfills removed - using Vite's built-in legacy plugin instead -->
-    
-    <!-- Safari-specific fixes -->
-    <script>
-      // Fix for Safari's localStorage issues
-      try {
-        localStorage.setItem('test', 'test');
-        localStorage.removeItem('test');
-      } catch (e) {
-        console.warn('localStorage not available, using memory storage');
-        window.localStorage = {
-          _data: {},
-          setItem: function(id, val) { return this._data[id] = String(val); },
-          getItem: function(id) { return this._data.hasOwnProperty(id) ? this._data[id] : null; },
-          removeItem: function(id) { return delete this._data[id]; },
-          clear: function() { return this._data = {}; }
-        };
-      }
-    </script>
-    
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <title>PIUS Academy</title>
   </head>
@@ -48,7 +28,12 @@
         <p>Molimo omogućite JavaScript u vašem browseru da biste koristili ovu stranicu.</p>
       </div>
     </noscript>
-    <div id="root"></div>
+    <div id="root">
+      <div style="padding: 3rem 1rem; text-align: center; font-family: sans-serif;">
+        <p>Učitavanje stranice…</p>
+        <p>Ako se stranica ne učita, <a href="">pokušajte ponovo</a>.</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

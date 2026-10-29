@@ -28,28 +28,8 @@ export const applySafariFixes = () => {
   window.addEventListener('resize', setVH);
   window.addEventListener('orientationchange', setVH);
 
-  // Fix 2: Prevent zoom on input focus (already handled in meta viewport)
-  // Maximum scale is set in index.html
-
-  // Fix 3: Disable zoom on double tap (only when explicitly non-passive)
-  let lastTouchEnd = 0;
-  document.addEventListener('touchend', (event) => {
-    const now = Date.now();
-    if (now - lastTouchEnd <= 300) {
-      event.preventDefault();
-    }
-    lastTouchEnd = now;
-  }, { passive: false });
-
-  // Fix 5: localStorage fallback
-  try {
-    localStorage.setItem('test', 'test');
-    localStorage.removeItem('test');
-    console.log('✅ localStorage available');
-  } catch (e) {
-    console.warn('⚠️ localStorage not available, using memory storage');
-    // Already handled in index.html
-  }
+  // Input font sizes and touch-action in CSS handle zoom without cancelling
+  // touchend events, which can swallow taps on links, buttons and the signature.
 
   console.log('✅ Safari/iOS fixes applied');
 };

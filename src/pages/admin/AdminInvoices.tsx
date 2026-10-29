@@ -1,12 +1,15 @@
 import { useEffect, useState, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Plus, Download, X, Search, CheckCircle, Clock, XCircle, User, Trash2, UserPlus, Mail, Settings, Bell, Edit } from 'lucide-react';
 import { getInvoices, getStudents, createInvoice, updateInvoice, deleteInvoice, downloadInvoicePdf, getPackages, createStudent, sendPaymentReminder, sendInvoiceEmail, sendInvoiceTestEmail, getSettings, updateSettings } from '../../lib/api';
 import type { Invoice, Student, Package as PackageType } from '../../types';
+import { courseName, enrollmentLabel, enrollmentTotals, groupEnrollments, installmentOptions, personKey, type StudentGroup } from '../../lib/enrollments';
 
 type InvoiceMode = 'existing' | 'new';
 
 export default function AdminInvoices() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [packages, setPackages] = useState<PackageType[]>([]);
@@ -18,6 +21,9 @@ export default function AdminInvoices() {
   const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
   const [invoiceToEdit, setInvoiceToEdit] = useState<Invoice | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [selectedPersonKey, setSelectedPersonKey] = useState('');
+  const [formError, setFormError] = useState('');
+  const [filterCourse, setFilterCourse] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
@@ -41,7 +47,7 @@ export default function AdminInvoices() {
   });
 
   const [newCustomer, setNewCustomer] = useState({
-    first_name: '', last_name: '', email: '', phone: '', address: '', city: '', country: 'Österreich',
+    first_name: '', last_name: '', email: '', phone: '', address: '', postal_code: '', id_document_number: '', city: '', country: 'Österreich',
     entity_type: 'individual' as 'individual' | 'company', company_name: '', vat_number: '',
     package_type: '', payment_method: 'full' as 'full' | 'installments',
   });
@@ -84,89 +90,93 @@ export default function AdminInvoices() {
     }
   };
 
-  const filteredStudents = Array.isArray(allStudents) ? allStudents.filter(student => {
-    const fullName = `${student.first_name} ${student.last_name}`.toLowerCase();
-    return fullName.includes(studentSearchTerm.toLowerCase()) || student.email.toLowerCase().includes(studentSearchTerm.toLowerCase());
-  }) : [];
+  const studentGroups = groupEnrollments(allStudents);
+  const selectedPerson = studentGroups.find(group => group.key === selectedPersonKey);
+  const filteredGroups = studentGroups.filter(group => {
+    const student = group.person;
+    const query = studentSearchTerm.trim().toLowerCase();
+    return `${student.first_name} ${student.last_name} ${student.email}`.toLowerCase().includes(query);
+  });
 
   const handleStudentSelect = (student: Student) => {
     setSelectedStudent(student);
-    setStudentSearchTerm(`${student.first_name} ${student.last_name}`);
+    setFormError('');
+    const pkg = student.package || packages.find(p => p.slug === student.package_type);
+    setFormData(prev => ({
+      ...prev, student_id: student.id, installment_number: '', notes: '', mark_as_paid: false,
+      description: `Kurs ${courseName({ ...student, package: pkg })}`,
+      total_amount: student.payment_method === 'full' ? String(pkg?.discount_price ?? pkg?.price ?? '') : '',
+    }));
+  };
+
+  const handlePersonSelect = (group: StudentGroup) => {
+    setSelectedPersonKey(group.key);
+    setStudentSearchTerm(`${group.person.first_name} ${group.person.last_name}`);
     setShowStudentDropdown(false);
-    setFormData(prev => ({ ...prev, student_id: student.id, installment_number: '', total_amount: '' }));
-    
-    const pkg = packages.find(p => p.slug === student.package_type);
-    if (pkg) {
-      // Ako je fiksno plaćanje, automatski postavi cijenu
-      if (student.payment_method === 'full' || pkg.payment_type === 'fixed') {
-        setFormData(prev => ({ 
-          ...prev, 
-          student_id: student.id, 
-          description: `Kurs ${pkg.name}`,
-          total_amount: pkg.price.toString()
-        }));
-      } else {
-        // Ako je na rate, samo postavi opis
-        setFormData(prev => ({ 
-          ...prev, 
-          student_id: student.id, 
-          description: `Kurs ${pkg.name}`
-        }));
-      }
+    setSelectedStudent(null);
+    setFormData(prev => ({ ...prev, student_id: '', installment_number: '', total_amount: '', description: '', notes: '', mark_as_paid: false }));
+    if (group.enrollments.length === 1) handleStudentSelect(group.enrollments[0]);
+  };
+
+  const invoicePackage = packages.find(pkg => pkg.slug === (invoiceMode === 'existing' ? selectedStudent?.package_type : newCustomer.package_type));
+  const availableInstallments = installmentOptions(invoiceMode === 'existing'
+    ? selectedStudent || { payment_method: 'full' }
+    : { payment_method: newCustomer.payment_method }, invoicePackage);
+
+  const handleInstallmentSelect = (number: string) => {
+    const installment = availableInstallments.find(item => item.number === Number(number));
+    setFormData(prev => ({ ...prev, installment_number: number,
+      total_amount: installment ? String(installment.amount) : '',
+      description: invoicePackage ? `Kurs ${invoicePackage.name}${number ? ` - ${number}. rata` : ''}` : '',
+    }));
+  };
+
+  useEffect(() => {
+    const id = searchParams.get('enrollment');
+    if (loading || !id) return;
+    const student = allStudents.find(item => item.id === id);
+    if (student) {
+      const group = groupEnrollments(allStudents).find(item => item.key === personKey(student))!;
+      handlePersonSelect(group);
+      handleStudentSelect(student);
+      setShowCreateModal(true);
     }
-  };
-
-  const getPaidInstallments = (student: Student): number[] => {
-    return student.invoices?.filter(inv => inv.status === 'paid' && inv.installment_number).map(inv => inv.installment_number!) || [];
-  };
-
-  const getAvailableInstallments = () => {
-    if (!selectedStudent || selectedStudent.payment_method !== 'installments') return [];
-    const paidInstallments = getPaidInstallments(selectedStudent);
-    const pkg = packages.find(p => p.slug === selectedStudent.package_type);
-    const totalInstallments = pkg?.installments?.length || 3;
-    
-    return Array.from({ length: totalInstallments }, (_, i) => {
-      const installmentNumber = i + 1;
-      const installment = pkg?.installments?.find(inst => inst.installment_number === installmentNumber);
-      return {
-        number: installmentNumber,
-        disabled: paidInstallments.includes(installmentNumber),
-        amount: installment?.amount || 0
-      };
-    });
-  };
-
-  const handleInstallmentSelect = (installmentNum: string) => {
-    if (!selectedStudent) return;
-    const pkg = packages.find(p => p.slug === selectedStudent.package_type);
-    const installment = pkg?.installments?.find(i => i.installment_number === parseInt(installmentNum));
-    if (installment && pkg) {
-      setFormData(prev => ({ ...prev, installment_number: installmentNum, total_amount: installment.amount.toString(), description: `Kurs ${pkg.name} ${installmentNum}. Rata` }));
-    }
-  };
+    setSearchParams({}, { replace: true });
+  }, [loading, allStudents, searchParams, setSearchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setFormError('');
     try {
       let studentId = formData.student_id;
       if (invoiceMode === 'new') {
         const studentRes = await createStudent({ ...newCustomer, status: 'enrolled', enrolled_at: new Date().toISOString() });
         studentId = studentRes.data.id;
+        const enrollment = { ...studentRes.data, package: invoicePackage, invoices: [], payments: [] };
+        setAllStudents(prev => [enrollment, ...prev]);
+        setSelectedStudent(enrollment);
+        setSelectedPersonKey(personKey(enrollment));
+        setStudentSearchTerm(`${enrollment.first_name} ${enrollment.last_name}`);
+        setFormData(prev => ({ ...prev, student_id: studentId }));
+        setInvoiceMode('existing');
       }
       await createInvoice({ ...formData, student_id: studentId, total_amount: parseFloat(formData.total_amount), installment_number: formData.installment_number ? parseInt(formData.installment_number) : null });
       await loadData();
       setShowCreateModal(false);
       resetForm();
-    } catch (err) { console.error(err); } finally { setSaving(false); }
+    } catch (err: any) {
+      setFormError(Object.values(err.response?.data?.errors || {}).flat().join(' ') || err.response?.data?.message || 'Fakturu nije moguće sačuvati. Pokušajte ponovo.');
+    } finally { setSaving(false); }
   };
 
   const resetForm = () => {
     setFormData({ student_id: '', invoice_date: new Date().toISOString().split('T')[0], description: '', total_amount: '', installment_number: '', notes: '', mark_as_paid: false });
-    setNewCustomer({ first_name: '', last_name: '', email: '', phone: '', address: '', city: '', country: 'Österreich', entity_type: 'individual', company_name: '', vat_number: '', package_type: '', payment_method: 'full' });
+    setNewCustomer({ first_name: '', last_name: '', email: '', phone: '', address: '', postal_code: '', id_document_number: '', city: '', country: 'Österreich', entity_type: 'individual', company_name: '', vat_number: '', package_type: '', payment_method: 'full' });
     setSelectedStudent(null);
+    setSelectedPersonKey('');
     setStudentSearchTerm('');
+    setFormError('');
     setInvoiceMode('existing');
   };
 
@@ -285,9 +295,9 @@ export default function AdminInvoices() {
   };
 
   const filteredInvoices = Array.isArray(invoices) ? invoices.filter(invoice => {
-    const matchesSearch = invoice.student?.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) || invoice.student?.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) || invoice.invoice_number.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = `${invoice.student?.first_name || ''} ${invoice.student?.last_name || ''} ${invoice.student?.email || ''} ${courseName(invoice.student)} ${invoice.invoice_number} ${invoice.description}`.toLowerCase().includes(searchTerm.trim().toLowerCase());
     const matchesStatus = filterStatus === 'all' || invoice.status === filterStatus;
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && (filterCourse === 'all' || invoice.student?.package_type === filterCourse);
   }) : [];
 
   const getStatusBadge = (status: string) => {
@@ -299,7 +309,7 @@ export default function AdminInvoices() {
     }
   };
 
-  const fixedPackages = Array.isArray(packages) ? packages.filter(p => p.payment_type === 'fixed') : [];
+  const activePackages = packages.filter(pkg => pkg.is_active);
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pius" /></div>;
 
@@ -327,11 +337,15 @@ export default function AdminInvoices() {
       </div>
 
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Pretraži po imenu ili broju fakture..." className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
+            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Ime, email, kurs ili broj fakture..." className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
           </div>
+          <select aria-label="Filter po kursu" value={filterCourse} onChange={e => setFilterCourse(e.target.value)} className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+            <option value="all">Svi kursevi</option>
+            {packages.map(pkg => <option key={pkg.id} value={pkg.slug}>{pkg.name}</option>)}
+          </select>
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
             <option value="all">Svi statusi</option>
             <option value="pending">Na čekanju</option>
@@ -348,6 +362,7 @@ export default function AdminInvoices() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Br. fakture</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Kupac</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Kurs / upis</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Opis</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Iznos</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Datum</th>
@@ -359,7 +374,8 @@ export default function AdminInvoices() {
               {filteredInvoices.map((invoice) => (
                 <tr key={invoice.id} className="hover:bg-gray-800/50">
                   <td className="px-6 py-4 whitespace-nowrap"><span className="font-mono text-pius">{invoice.invoice_number}</span></td>
-                  <td className="px-6 py-4 whitespace-nowrap"><div className="flex items-center gap-2"><User className="h-4 w-4 text-gray-400" /><span className="text-white">{invoice.student?.first_name} {invoice.student?.last_name}</span></div></td>
+                  <td className="px-6 py-4 whitespace-nowrap"><div className="flex items-center gap-2"><User className="h-4 w-4 text-gray-400" /><span className="text-white">{invoice.student?.first_name} {invoice.student?.last_name}</span></div><p className="text-xs text-gray-400 mt-1">{invoice.student?.email}</p></td>
+                  <td className="px-6 py-4"><p className="text-pius">{courseName(invoice.student)}</p><p className="text-xs text-gray-400">Upis #{invoice.student_id.slice(-8)}{invoice.installment_number ? ` · ${invoice.installment_number}. rata` : ' · Cjelokupno'}</p></td>
                   <td className="px-6 py-4"><span className="text-gray-300">{invoice.description}</span></td>
                   <td className="px-6 py-4 whitespace-nowrap"><span className="text-white font-semibold">€{Number(invoice.total_amount).toFixed(2)}</span></td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-400">{new Date(invoice.invoice_date).toLocaleDateString('de-AT')}</td>
@@ -403,12 +419,13 @@ export default function AdminInvoices() {
               </div>
 
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                {formError && <p role="alert" className="p-3 bg-red-900/20 text-red-300 rounded-lg">{formError}</p>}
                 {/* Mode Selection */}
                 <div className="flex gap-2 p-1 bg-gray-800 rounded-lg">
                   <button type="button" onClick={() => { setInvoiceMode('existing'); resetForm(); }} className={`flex-1 py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center gap-2 ${invoiceMode === 'existing' ? 'bg-pius text-black' : 'text-gray-400 hover:text-white'}`}>
                     <User className="h-4 w-4" />Postojeći kupac
                   </button>
-                  <button type="button" onClick={() => { setInvoiceMode('new'); setSelectedStudent(null); setStudentSearchTerm(''); }} className={`flex-1 py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center gap-2 ${invoiceMode === 'new' ? 'bg-pius text-black' : 'text-gray-400 hover:text-white'}`}>
+                  <button type="button" onClick={() => { resetForm(); setInvoiceMode('new'); }} className={`flex-1 py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center gap-2 ${invoiceMode === 'new' ? 'bg-pius text-black' : 'text-gray-400 hover:text-white'}`}>
                     <UserPlus className="h-4 w-4" />Novi kupac
                   </button>
                 </div>
@@ -416,25 +433,39 @@ export default function AdminInvoices() {
                 {invoiceMode === 'existing' && (
                   <>
                     <div ref={dropdownRef} className="relative">
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Kupac *</label>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Polaznik *</label>
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input type="text" value={studentSearchTerm} onChange={(e) => { setStudentSearchTerm(e.target.value); setShowStudentDropdown(true); setSelectedStudent(null); setFormData(prev => ({ ...prev, student_id: '' })); }} onFocus={() => setShowStudentDropdown(true)} placeholder="Pretraži kupca..." className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
+                        <input type="text" value={studentSearchTerm} onChange={(e) => { setStudentSearchTerm(e.target.value); setShowStudentDropdown(true); setSelectedStudent(null); setSelectedPersonKey(''); setFormData(prev => ({ ...prev, student_id: '', installment_number: '', total_amount: '', description: '' })); }} onFocus={() => setShowStudentDropdown(true)} placeholder="Pretraži kupca..." className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
                       </div>
-                      {showStudentDropdown && filteredStudents.length > 0 && (
+                      {showStudentDropdown && filteredGroups.length > 0 && (
                         <div className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                          {filteredStudents.slice(0, 10).map((student) => (
-                            <button key={student.id} type="button" onClick={() => handleStudentSelect(student)} className="w-full px-4 py-3 text-left hover:bg-gray-700 flex items-center justify-between">
+                          {filteredGroups.slice(0, 20).map((group) => (
+                            <button key={group.key} type="button" onClick={() => handlePersonSelect(group)} className="w-full px-4 py-3 text-left hover:bg-gray-700 flex items-center justify-between">
                               <div>
-                                <p className="text-white font-medium">{student.first_name} {student.last_name}</p>
-                                <p className="text-gray-400 text-sm">{student.email}</p>
+                                <p className="text-white font-medium">{group.person.first_name} {group.person.last_name}</p>
+                                <p className="text-gray-400 text-sm">{group.person.email}</p>
                               </div>
-                              <span className="text-xs bg-gray-700 px-2 py-1 rounded">{student.payment_method === 'installments' ? 'Rate' : 'Fiksno'}</span>
+                              <span className="text-xs bg-gray-700 px-2 py-1 rounded">{group.enrollments.length} upis(a)</span>
                             </button>
                           ))}
                         </div>
                       )}
                     </div>
+
+                    {selectedPerson && (
+                      <div>
+                        <label htmlFor="invoice-enrollment" className="block text-sm font-medium text-gray-300 mb-2">Kurs / upis *</label>
+                        <select id="invoice-enrollment" value={selectedStudent?.id || ''} onChange={event => {
+                          const enrollment = selectedPerson.enrollments.find(item => item.id === event.target.value);
+                          if (enrollment) handleStudentSelect(enrollment);
+                        }} required className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                          <option value="" disabled>Odaberi upis za ovu fakturu...</option>
+                          {selectedPerson.enrollments.map(enrollment => <option key={enrollment.id} value={enrollment.id}>{enrollmentLabel(enrollment)}</option>)}
+                        </select>
+                        <p className="text-xs text-gray-400 mt-2">Faktura i uplata pripadaju odabranom upisu.</p>
+                      </div>
+                    )}
 
                     {selectedStudent && (
                       <div className="bg-gray-800/50 p-4 rounded-lg">
@@ -443,24 +474,13 @@ export default function AdminInvoices() {
                           <p>{selectedStudent.first_name} {selectedStudent.last_name}</p>
                           <p>{selectedStudent.address}, {selectedStudent.postal_code} {selectedStudent.city}, {selectedStudent.country}</p>
                           <p>{selectedStudent.email}</p>
-                          <p className="text-pius font-semibold">{packages.find(p => p.slug === selectedStudent.package_type)?.name || selectedStudent.package_type}</p>
+                          <p>{selectedStudent.entity_type === 'company' ? `Pravno lice: ${selectedStudent.company_name || ''}` : 'Fizičko lice'}</p>
+                          <p className="text-pius font-semibold">{courseName(selectedStudent)} · Upis #{selectedStudent.id.slice(-8)}</p>
+                          <p>Plaćeno: €{enrollmentTotals(selectedStudent).paid.toFixed(2)} · Preostalo za kurs: €{enrollmentTotals(selectedStudent).remaining.toFixed(2)}</p>
                         </div>
                       </div>
                     )}
 
-                    {selectedStudent?.payment_method === 'installments' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Rata</label>
-                        <select value={formData.installment_number} onChange={(e) => handleInstallmentSelect(e.target.value)} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
-                          <option value="">Odaberi ratu...</option>
-                          {getAvailableInstallments().map(({ number, disabled, amount }) => (
-                            <option key={number} value={number} disabled={disabled}>
-                              {number}. rata - €{Number(amount).toFixed(2)} {disabled ? '(već plaćeno)' : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
                   </>
                 )}
 
@@ -500,6 +520,10 @@ export default function AdminInvoices() {
                         <input type="text" value={newCustomer.country} onChange={(e) => setNewCustomer({ ...newCustomer, country: e.target.value })} required className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label htmlFor="new-postal-code" className="block text-sm text-gray-300 mb-2">Poštanski broj *</label><input id="new-postal-code" value={newCustomer.postal_code} onChange={e => setNewCustomer({ ...newCustomer, postal_code: e.target.value })} required className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" /></div>
+                      <div><label htmlFor="new-id-document" className="block text-sm text-gray-300 mb-2">Broj ličnog dokumenta *</label><input id="new-id-document" value={newCustomer.id_document_number} onChange={e => setNewCustomer({ ...newCustomer, id_document_number: e.target.value })} required className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" /></div>
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">Tip kupca</label>
                       <div className="flex gap-4">
@@ -526,15 +550,39 @@ export default function AdminInvoices() {
                       </div>
                     )}
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Kurs (fiksna cijena) *</label>
-                      <select value={newCustomer.package_type} onChange={(e) => { setNewCustomer({ ...newCustomer, package_type: e.target.value }); const pkg = packages.find(p => p.slug === e.target.value); if (pkg) setFormData(prev => ({ ...prev, description: pkg.name, total_amount: pkg.price.toString() })); }} required className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Kurs *</label>
+                      <select value={newCustomer.package_type} onChange={(e) => { const pkg = packages.find(p => p.slug === e.target.value); setNewCustomer({ ...newCustomer, package_type: e.target.value, payment_method: pkg?.payment_type === 'installments' ? 'installments' : 'full' }); setFormData(prev => ({ ...prev, installment_number: '', description: pkg ? `Kurs ${pkg.name}` : '', total_amount: pkg?.payment_type === 'fixed' ? String(pkg.discount_price ?? pkg.price) : '' })); }} required className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
                         <option value="">Odaberi kurs...</option>
-                        {fixedPackages.map(pkg => (
-                          <option key={pkg.id} value={pkg.slug}>{pkg.name} - €{Number(pkg.price).toFixed(2)}</option>
+                        {activePackages.map(pkg => (
+                          <option key={pkg.id} value={pkg.slug}>{pkg.name} - €{Number(pkg.discount_price ?? pkg.price).toFixed(2)}</option>
                         ))}
                       </select>
                     </div>
+                    {invoicePackage?.payment_type === 'installments' && <div>
+                      <label htmlFor="new-invoice-payment-method" className="block text-sm text-gray-300 mb-2">Način plaćanja</label>
+                      <select id="new-invoice-payment-method" value={newCustomer.payment_method} onChange={event => {
+                        const method = event.target.value as 'full' | 'installments';
+                        setNewCustomer({ ...newCustomer, payment_method: method });
+                        setFormData(previous => ({ ...previous, installment_number: '', total_amount: method === 'full' ? String(invoicePackage.discount_price ?? invoicePackage.price) : '' }));
+                      }} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                        <option value="installments">Na rate</option><option value="full">Cjelokupno</option>
+                      </select>
+                    </div>}
                   </>
+                )}
+
+                {availableInstallments.length > 0 && (
+                  <div>
+                    <label htmlFor="invoice-installment" className="block text-sm font-medium text-gray-300 mb-2">Rata za odabrani kurs *</label>
+                    <select id="invoice-installment" value={formData.installment_number} onChange={event => handleInstallmentSelect(event.target.value)} required className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                      <option value="">Odaberi ratu...</option>
+                      {availableInstallments.map(({ number, amount, disabled, invoice, paid }) => (
+                        <option key={number} value={number} disabled={disabled}>
+                          {number}. rata - €{amount.toFixed(2)} {invoice ? `(faktura ${invoice.invoice_number} - ${paid ? 'plaćeno' : 'na čekanju'})` : paid ? '(već plaćeno)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
 
                 <div>

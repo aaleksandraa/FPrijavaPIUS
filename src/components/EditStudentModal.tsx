@@ -74,8 +74,8 @@ export default function EditStudentModal({ isOpen, student, onClose, onSuccess }
 
   const loadPackages = async () => {
     try {
-      const res = await getPackages();
-      setPackages(res.data.filter((p: Package) => p.is_active));
+      const res = await getPackages(true);
+      setPackages(res.data);
     } catch (err) {
       console.error(err);
     }
@@ -93,7 +93,7 @@ export default function EditStudentModal({ isOpen, student, onClose, onSuccess }
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Greška pri ažuriranju studenta');
+      setError(Object.values(err.response?.data?.errors || {}).flat().join(' ') || err.response?.data?.message || 'Greška pri ažuriranju studenta');
     } finally {
       setLoading(false);
     }
@@ -187,6 +187,7 @@ export default function EditStudentModal({ isOpen, student, onClose, onSuccess }
             <label className="block text-sm font-medium text-gray-300 mb-2">Kurs *</label>
             <select
               value={formData.package_type}
+              disabled={!!(student.contracts?.length || student.invoices?.length || student.payments?.length)}
               onChange={(e) => setFormData({ ...formData, package_type: e.target.value })}
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
               required
@@ -198,6 +199,7 @@ export default function EditStudentModal({ isOpen, student, onClose, onSuccess }
                 </option>
               ))}
             </select>
+            {!!(student.contracts?.length || student.invoices?.length || student.payments?.length) && <p className="text-xs text-gray-400 mt-2">Za drugi kurs koristite „Dodaj upis na drugi kurs” u pregledu polaznika.</p>}
           </div>
 
           {/* Payment Method */}

@@ -4,12 +4,15 @@ import { Download, Calendar, FileText, Eye } from 'lucide-react';
 import { getContracts, getStudents } from '../../lib/api';
 import { generateStudentPDF } from '../../lib/pdfGenerator';
 import type { Contract, Student } from '../../types';
+import { courseName } from '../../lib/enrollments';
 
 export default function AdminContracts() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+  const [search, setSearch] = useState('');
+  const [filterCourse, setFilterCourse] = useState('all');
 
   useEffect(() => {
     loadData();
@@ -49,6 +52,14 @@ export default function AdminContracts() {
     return student ? `${student.first_name} ${student.last_name}` : 'N/A';
   };
 
+  const enrollment = (id: string) => students.find(student => student.id === id);
+  const filteredContracts = contracts.filter(contract => {
+    const student = enrollment(contract.student_id);
+    const text = `${getStudentName(contract.student_id)} ${student?.email || ''} ${courseName(student)} ${contract.contract_number || ''}`.toLowerCase();
+    return text.includes(search.trim().toLowerCase()) && (filterCourse === 'all' || student?.package_type === filterCourse);
+  });
+  const courses = Array.from(new Map(students.map(student => [student.package_type, courseName(student)])).entries());
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -66,7 +77,14 @@ export default function AdminContracts() {
       {/* Contracts Table */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-800">
-          <h2 className="text-lg font-medium">Digitalno potpisani ugovori ({contracts.length})</h2>
+          <h2 className="text-lg font-medium">Digitalno potpisani ugovori ({filteredContracts.length})</h2>
+          <div className="flex flex-wrap gap-3 mt-3">
+            <input aria-label="Pretraži ugovore" placeholder="Ime, email, kurs ili broj ugovora..." value={search} onChange={event => setSearch(event.target.value)} className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg" />
+            <select aria-label="Kurs ugovora" value={filterCourse} onChange={event => setFilterCourse(event.target.value)} className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg">
+              <option value="all">Svi kursevi</option>
+              {courses.map(([slug, name]) => <option key={slug} value={slug}>{name}</option>)}
+            </select>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full">
@@ -74,20 +92,23 @@ export default function AdminContracts() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">ID Ugovora</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Student</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Kurs / upis</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Tip ugovora</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Datum potpisivanja</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Akcije</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {contracts.map((contract) => (
+              {filteredContracts.map((contract) => (
                 <tr key={contract.id} className="hover:bg-gray-800/50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-300">
                     {contract.id.substring(0, 8)}...
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                     {getStudentName(contract.student_id)}
+                    <p className="text-xs text-gray-400">{enrollment(contract.student_id)?.email}</p>
                   </td>
+                  <td className="px-6 py-4"><p className="text-pius">{courseName(enrollment(contract.student_id))}</p><p className="text-xs text-gray-400">Upis #{contract.student_id.slice(-8)}</p></td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                       contract.contract_type === 'individual'
@@ -141,7 +162,7 @@ export default function AdminContracts() {
             <div className="flex items-center justify-between p-4 border-b border-gray-700">
               <h3 className="text-lg font-semibold flex items-center">
                 <FileText className="h-5 w-5 text-pius mr-2" />
-                Pregled ugovora - {getStudentName(selectedContract.student_id)}
+                Pregled ugovora - {getStudentName(selectedContract.student_id)} · {courseName(enrollment(selectedContract.student_id))}
               </h3>
               <button
                 onClick={() => setSelectedContract(null)}

@@ -62,7 +62,7 @@ describe('Property 3: API Fallback Functionality', () => {
     });
 
     it('should execute callbacks asynchronously like native API', async () => {
-      fc.assert(
+      await fc.assert(
         fc.asyncProperty(
           fc.integer({ min: 1, max: 10 }),
           async (numCallbacks) => {
@@ -101,17 +101,14 @@ describe('Property 3: API Fallback Functionality', () => {
   });
 
   describe('Promise.allSettled polyfill', () => {
-    it('should provide equivalent functionality when native API is absent', () => {
-      fc.assert(
+    it('should provide equivalent functionality when native API is absent', async () => {
+      await fc.assert(
         fc.asyncProperty(
           fc.array(
-            fc.oneof(
-              fc.constant(Promise.resolve('success')),
-              fc.constant(Promise.reject('error'))
-            ),
+            fc.boolean(),
             { minLength: 1, maxLength: 10 }
           ),
-          async (promises) => {
+          async (fulfilled) => {
             const original = Promise.allSettled;
             
             try {
@@ -120,13 +117,10 @@ describe('Property 3: API Fallback Functionality', () => {
               
               expect(typeof Promise.allSettled).toBe('function');
               
-              // Should not throw reference error
-              let results;
-              expect(async () => {
-                results = await Promise.allSettled(promises);
-              }).not.toThrow();
-              
-              results = await Promise.allSettled(promises);
+              // Create rejections immediately before attaching their handlers.
+              const promises = fulfilled.map(success => success
+                ? Promise.resolve('success') : Promise.reject('error'));
+              const results = await Promise.allSettled(promises);
               
               // Should return array of results
               expect(Array.isArray(results)).toBe(true);
@@ -147,8 +141,8 @@ describe('Property 3: API Fallback Functionality', () => {
   });
 
   describe('Promise.finally polyfill', () => {
-    it('should provide equivalent functionality when native API is absent', () => {
-      fc.assert(
+    it('should provide equivalent functionality when native API is absent', async () => {
+      await fc.assert(
         fc.asyncProperty(
           fc.oneof(
             fc.constant('fulfilled'),
@@ -167,13 +161,6 @@ describe('Property 3: API Fallback Functionality', () => {
               const promise = promiseType === 'fulfilled'
                 ? Promise.resolve('success')
                 : Promise.reject('error');
-              
-              // Should not throw reference error
-              expect(() => {
-                promise.finally(() => {
-                  finallyCalled = true;
-                });
-              }).not.toThrow();
               
               try {
                 await promise.finally(() => {

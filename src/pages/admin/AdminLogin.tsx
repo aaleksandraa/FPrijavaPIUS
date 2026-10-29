@@ -1,3 +1,4 @@
+import { localStore, sessionStore } from '../../lib/storage';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -20,10 +21,10 @@ export default function AdminLogin() {
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>();
 
   useEffect(() => {
-    const authError = sessionStorage.getItem('pius_admin_auth_error');
+    const authError = sessionStore.getItem('pius_admin_auth_error');
     if (authError) {
       setError(authError);
-      sessionStorage.removeItem('pius_admin_auth_error');
+      sessionStore.removeItem('pius_admin_auth_error');
     }
 
     const email = searchParams.get('email');
@@ -49,18 +50,18 @@ export default function AdminLogin() {
         throw new Error('Login odgovor ne sadrzi token.');
       }
 
-      localStorage.setItem('pius_admin_token', token);
-      localStorage.setItem('pius_admin_session', JSON.stringify({
+      localStore.setItem('pius_admin_token', token);
+      localStore.setItem('pius_admin_session', JSON.stringify({
         ...response.data.user,
         loginTime: new Date().toISOString(),
       }));
 
       await getMe({ skipAuthRedirect: true });
 
-      window.location.href = '/admin';
+      navigate('/admin', { replace: true });
     } catch (err: any) {
-      localStorage.removeItem('pius_admin_token');
-      localStorage.removeItem('pius_admin_session');
+      localStore.removeItem('pius_admin_token');
+      localStore.removeItem('pius_admin_session');
 
       setError(
         err.response?.data?.errors?.email?.[0] ||

@@ -6,40 +6,23 @@ export default defineConfig({
   plugins: [
     react(),
     legacy({
-      targets: ['safari >= 11', 'ios >= 11'],
+      targets: ['defaults', 'safari >= 11', 'ios >= 11'],
       additionalLegacyPolyfills: [
-        'regenerator-runtime/runtime'
+        'regenerator-runtime/runtime',
+        'core-js/modules/web.queue-microtask',
+        'core-js/modules/es.global-this',
       ],
       renderLegacyChunks: true,
-      polyfills: [
-        'es.promise',
-        'es.promise.all-settled',
-        'es.promise.finally',
-        'es.array.iterator',
-        'es.object.assign',
-        'es.array.includes',
-        'es.array.find',
-        'es.array.find-index',
-        'es.array.flat',
-        'es.array.flat-map',
-        'es.string.includes',
-        'es.string.starts-with',
-        'es.string.ends-with',
-        'es.object.entries',
-        'es.object.values',
-        'es.object.from-entries',
-        'es.symbol',
-        'es.symbol.async-iterator',
-        'web.queue-microtask'
-      ],
+      // Detect polyfills used by the app AND dependencies instead of a partial list.
+      polyfills: true,
       modernPolyfills: true,
-      // Ensure node_modules are also transpiled
-      modernTargets: 'defaults',
+      // Safari 12 passes the plugin's modern-browser check. Its bundle must
+      // therefore be transpiled for Safari 12, even when Browserslist moves on.
+      modernTargets: ['edge >= 79', 'firefox >= 67', 'chrome >= 64', 'safari >= 12', 'ios >= 12'],
       renderModernChunks: true,
     }),
   ],
   build: {
-    target: ['es2015', 'safari11'],
     cssTarget: 'safari11',
     minify: 'terser',
     terserOptions: {

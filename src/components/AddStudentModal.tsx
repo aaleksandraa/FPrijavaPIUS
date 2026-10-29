@@ -2,46 +2,63 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, User, Building, Loader2 } from 'lucide-react';
 import { createStudent, getPackages } from '../lib/api';
-import type { Package } from '../types';
+import type { Package, Student } from '../types';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  initialStudent?: Student | null;
 }
 
-export default function AddStudentModal({ isOpen, onClose, onSuccess }: Props) {
+const emptyForm = {
+  first_name: '',
+  last_name: '',
+  email: '',
+  phone: '',
+  address: '',
+  postal_code: '',
+  city: '',
+  country: 'Österreich',
+  id_document_number: '',
+  entity_type: 'individual' as 'individual' | 'company',
+  payment_method: 'installments' as 'full' | 'installments',
+  package_type: '',
+  company_name: '',
+  vat_number: '',
+  company_address: '',
+  company_postal_code: '',
+  company_city: '',
+  company_country: '',
+  company_registration: '',
+};
+
+export default function AddStudentModal({ isOpen, onClose, onSuccess, initialStudent }: Props) {
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    address: '',
-    postal_code: '',
-    city: '',
-    country: 'Österreich',
-    id_document_number: '',
-    entity_type: 'individual' as 'individual' | 'company',
-    payment_method: 'installments' as 'full' | 'installments',
-    package_type: '',
-    company_name: '',
-    vat_number: '',
-    company_address: '',
-    company_postal_code: '',
-    company_city: '',
-    company_country: '',
-    company_registration: '',
-  });
+  const [formData, setFormData] = useState(emptyForm);
 
   useEffect(() => {
     if (isOpen) {
       loadPackages();
+      setError('');
+      if (initialStudent) {
+        setFormData(() => {
+          const next = { ...emptyForm };
+          for (const key of Object.keys(next) as (keyof typeof next)[]) {
+            if (key === 'package_type' || key === 'payment_method') continue;
+            const value = initialStudent[key];
+            if (value !== undefined && value !== null) (next as any)[key] = value;
+          }
+          return next;
+        });
+      } else {
+        setFormData(emptyForm);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialStudent]);
 
   const loadPackages = async () => {
     try {
@@ -65,28 +82,7 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess }: Props) {
       });
       onSuccess();
       onClose();
-      // Reset form
-      setFormData({
-        first_name: '',
-        last_name: '',
-        email: '',
-        phone: '',
-        address: '',
-        postal_code: '',
-        city: '',
-        country: 'Österreich',
-        id_document_number: '',
-        entity_type: 'individual',
-        payment_method: 'installments',
-        package_type: '',
-        company_name: '',
-        vat_number: '',
-        company_address: '',
-        company_postal_code: '',
-        company_city: '',
-        company_country: '',
-        company_registration: '',
-      });
+      setFormData(emptyForm);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Greška pri dodavanju studenta');
     } finally {
@@ -113,7 +109,7 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess }: Props) {
       >
         {/* Header */}
         <div className="sticky top-0 bg-gray-900 border-b border-gray-700 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-          <h2 className="text-xl font-semibold text-white">Dodaj novog studenta</h2>
+          <h2 className="text-xl font-semibold text-white">{initialStudent ? 'Novi upis postojećeg polaznika' : 'Dodaj novog polaznika'}</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors"
@@ -166,7 +162,7 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess }: Props) {
             <label className="block text-sm font-medium text-gray-300 mb-2">Kurs *</label>
             <select
               value={formData.package_type}
-              onChange={(e) => setFormData({ ...formData, package_type: e.target.value })}
+              onChange={(e) => { const pkg = packages.find(item => item.slug === e.target.value); setFormData({ ...formData, package_type: e.target.value, payment_method: pkg?.payment_type === 'installments' ? 'installments' : 'full' }); }}
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
               required
             >

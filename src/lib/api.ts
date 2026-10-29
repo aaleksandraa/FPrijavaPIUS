@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { safeAPICall } from './runtimeErrorHandling';
+import { localStore, sessionStore } from './storage';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'https://api.prijava.pius-academy.com/api',
@@ -24,7 +25,7 @@ api.interceptors.request.use((config) => {
     });
     
     const token = safeAPICall(
-      () => localStorage.getItem('pius_admin_token'),
+      () => localStore.getItem('pius_admin_token'),
       null,
       'localStorage.getItem'
     );
@@ -75,10 +76,10 @@ api.interceptors.response.use(
 
         safeAPICall(
           () => {
-            localStorage.removeItem('pius_admin_token');
-            localStorage.removeItem('pius_admin_session');
+            localStore.removeItem('pius_admin_token');
+            localStore.removeItem('pius_admin_session');
             if (!isAuthPage) {
-              sessionStorage.setItem(
+              sessionStore.setItem(
                 'pius_admin_auth_error',
                 'Sesija nije potvrdjena na serveru. Prijavite se ponovo.'
               );
@@ -88,7 +89,7 @@ api.interceptors.response.use(
           'localStorage.removeItem'
         );
 
-        if (!isAuthPage) {
+        if (!isAuthPage && window.location.pathname.startsWith('/admin')) {
           window.location.href = '/admin/login';
         }
       }
@@ -172,6 +173,9 @@ export const getPackages = (includeInactive = false) =>
   api.get(`/packages${includeInactive ? '?include_inactive=1' : ''}`);
 
 export const getPackage = (id: string) => api.get(`/packages/${id}`);
+
+export const getPackageBySlug = (slug: string) =>
+  api.get(`/packages/slug/${encodeURIComponent(slug)}`);
 
 export const createPackage = (data: any) => api.post('/packages', data);
 

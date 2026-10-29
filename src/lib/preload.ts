@@ -1,3 +1,4 @@
+import { localStore } from './storage';
 // Preload packages on app start
 import { getPackages } from './api';
 
@@ -20,8 +21,8 @@ export const preloadPackages = async () => {
         piusPackages.sort((a: any, b: any) => Number(a.price) - Number(b.price));
         
         // Save to cache
-        localStorage.setItem(CACHE_KEY, JSON.stringify(piusPackages));
-        localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+        localStore.setItem(CACHE_KEY, JSON.stringify(piusPackages));
+        localStore.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
         
         console.log(`✅ Preloaded ${piusPackages.length} packages to cache`);
       }

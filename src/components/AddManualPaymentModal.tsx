@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus } from 'lucide-react';
 import { createInvoice } from '../lib/api';
 import type { Student } from '../types';
+import { courseName, enrollmentLabel, enrollmentTotals, installmentOptions } from '../lib/enrollments';
 
 interface AddManualPaymentModalProps {
   isOpen: boolean;
@@ -17,7 +18,7 @@ export default function AddManualPaymentModal({ isOpen, onClose, student, onSucc
   const [useCustomNumber, setUseCustomNumber] = useState(false);
   
   const [formData, setFormData] = useState({
-    installment_number: 1,
+    installment_number: '',
     total_amount: '',
     payment_date: new Date().toISOString().split('T')[0],
     invoice_date: new Date().toISOString().split('T')[0],
@@ -25,6 +26,20 @@ export default function AddManualPaymentModal({ isOpen, onClose, student, onSucc
     description: '',
     notes: '',
   });
+
+  useEffect(() => {
+    if (!isOpen || !student) return;
+    const first = installmentOptions(student).find(option => !option.disabled);
+    setError('');
+    setUseCustomNumber(false);
+    setFormData({
+      installment_number: first ? String(first.number) : '',
+      total_amount: student.payment_method === 'full' ? String(enrollmentTotals(student).remaining) : first?.amount ? String(first.amount) : '',
+      payment_date: new Date().toISOString().split('T')[0],
+      invoice_date: new Date().toISOString().split('T')[0],
+      custom_invoice_number: '', description: '', notes: '',
+    });
+  }, [isOpen, student]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,11 +49,11 @@ export default function AddManualPaymentModal({ isOpen, onClose, student, onSucc
     try {
       await createInvoice({
         student_id: student.id,
-        installment_number: formData.installment_number,
+        installment_number: student.payment_method === 'installments' ? Number(formData.installment_number) : null,
         total_amount: parseFloat(formData.total_amount),
         payment_date: formData.payment_date,
         invoice_date: formData.invoice_date,
-        description: formData.description || `${formData.installment_number}. rata`,
+        description: formData.description || `Kurs ${courseName(student)}${student.payment_method === 'installments' ? ` - ${formData.installment_number}. rata` : ''}`,
         notes: formData.notes,
         mark_as_paid: true,
         use_custom_number: useCustomNumber,
@@ -50,7 +65,7 @@ export default function AddManualPaymentModal({ isOpen, onClose, student, onSucc
       
       // Reset form
       setFormData({
-        installment_number: 1,
+        installment_number: '',
         total_amount: '',
         payment_date: new Date().toISOString().split('T')[0],
         invoice_date: new Date().toISOString().split('T')[0],
@@ -60,7 +75,7 @@ export default function AddManualPaymentModal({ isOpen, onClose, student, onSucc
       });
       setUseCustomNumber(false);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Greška pri dodavanju plaćanja');
+      setError(Object.values(err.response?.data?.errors || {}).flat().join(' ') || err.response?.data?.message || 'Greška pri dodavanju plaćanja');
     } finally {
       setLoading(false);
     }
@@ -106,22 +121,29 @@ export default function AddManualPaymentModal({ isOpen, onClose, student, onSucc
               <div className="bg-gray-800/50 rounded-lg p-4 mb-4">
                 <p className="text-sm text-gray-400">Student:</p>
                 <p className="text-white font-medium">{student.first_name} {student.last_name}</p>
+                <p className="text-sm text-gray-400">{student.email}</p>
+                <p className="text-sm text-pius mt-2">{enrollmentLabel(student)}</p>
               </div>
 
-              <div>
+              {student.payment_method === 'installments' && <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Broj rate *
+                  Rata za ovaj upis *
                 </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
+                <select
+                  aria-label="Rata za ovaj upis"
                   required
                   value={formData.installment_number}
-                  onChange={(e) => setFormData({ ...formData, installment_number: parseInt(e.target.value) })}
+                  onChange={(e) => {
+                    const option = installmentOptions(student).find(item => item.number === Number(e.target.value));
+                    setFormData({ ...formData, installment_number: e.target.value, total_amount: option?.amount ? String(option.amount) : '' });
+                  }}
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                />
-              </div>
+                >
+                  <option value="">Odaberi ratu...</option>
+                  {installmentOptions(student).map(option => <option key={option.number} value={option.number} disabled={option.disabled}>{option.number}. rata - €{option.amount.toFixed(2)} {option.invoice ? `(faktura ${option.invoice.invoice_number})` : option.paid ? '(plaćeno)' : ''}</option>)}
+                </select>
+                <p className="text-xs text-gray-400 mt-2">Ako faktura za ratu već postoji, označite je kao plaćenu u pregledu faktura.</p>
+              </div>}
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">

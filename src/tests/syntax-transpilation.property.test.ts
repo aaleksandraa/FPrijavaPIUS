@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import * as fc from 'fast-check';
+import { parse } from '@babel/parser';
 
 /**
  * Property test for syntax transpilation completeness
@@ -18,6 +19,32 @@ import * as fc from 'fast-check';
  */
 describe('Property Test: Syntax Transpilation Completeness', () => {
   const distPath = join(process.cwd(), 'dist');
+
+  it('does not send optional chaining, nullish operators or class fields to Safari 12', () => {
+    // Safari 12 passes Vite's modern-browser guard. Checking only the legacy
+    // bundle misses syntax errors in the bundle it actually executes.
+    const assets = join(distPath, 'assets');
+    const modernFiles = readdirSync(assets).filter(file => file.endsWith('.js') && !file.includes('-legacy-'));
+    expect(modernFiles.length).toBeGreaterThan(0);
+    const unsupported = new Set([
+      'OptionalMemberExpression', 'OptionalCallExpression', 'ClassProperty',
+      'ClassPrivateProperty', 'ClassPrivateMethod', 'StaticBlock',
+    ]);
+    const failures: string[] = [];
+    const inspect = (node: any, file: string): void => {
+      if (!node || typeof node !== 'object') return;
+      if (node.type) {
+        if (unsupported.has(node.type)) failures.push(`${file}: ${node.type}`);
+        if (['??', '??=', '||=', '&&='].includes(node.operator)) failures.push(`${file}: ${node.operator}`);
+      }
+      Object.values(node).forEach(child => {
+        if (Array.isArray(child)) child.forEach(item => inspect(item, file));
+        else inspect(child, file);
+      });
+    };
+    modernFiles.forEach(file => inspect(parse(readFileSync(join(assets, file), 'utf8'), { sourceType: 'module' }), file));
+    expect(failures).toEqual([]);
+  });
 
   it('should have polyfills for ES2016+ features in legacy bundles', () => {
     fc.assert(

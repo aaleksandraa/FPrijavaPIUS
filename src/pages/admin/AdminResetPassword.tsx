@@ -1,3 +1,4 @@
+import { localStore } from '../../lib/storage';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -34,8 +35,8 @@ export default function AdminResetPassword() {
 
     try {
       const response = await resetPassword(email, token, data.password, data.password_confirmation);
-      localStorage.removeItem('pius_admin_token');
-      localStorage.removeItem('pius_admin_session');
+      localStore.removeItem('pius_admin_token');
+      localStore.removeItem('pius_admin_session');
       setMessage(response.data.message || 'Lozinka je uspjesno promijenjena.');
     } catch (err: any) {
       setError(

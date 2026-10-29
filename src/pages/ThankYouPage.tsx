@@ -2,8 +2,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircle, Mail, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { getPackages } from '../lib/api';
+import { getPackageBySlug } from '../lib/api';
 import type { Package } from '../types';
+
+const formatPrice = (amount: number) => `${Number(amount).toLocaleString('de-DE', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})} €`;
 
 export default function ThankYouPage() {
   const navigate = useNavigate();
@@ -13,21 +18,23 @@ export default function ThankYouPage() {
   const [packageData, setPackageData] = useState<Package | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setPackageData(null);
     const loadPackageData = async () => {
       if (!selectedPackageSlug) {
         return;
       }
       
       try {
-        const res = await getPackages(true);
-        const pkg = res.data.find((p: Package) => p.slug === selectedPackageSlug);
-        setPackageData(pkg || null);
+        const res = await getPackageBySlug(selectedPackageSlug);
+        if (!cancelled) setPackageData(res.data);
       } catch (err) {
         console.error('Failed to load package data:', err);
       }
     };
     
     loadPackageData();
+    return () => { cancelled = true; };
   }, [selectedPackageSlug]);
 
   return (
@@ -84,20 +91,25 @@ export default function ThankYouPage() {
               </h3>
               <div className="space-y-3 text-sm">
                 {packageData.installments.map((inst, index) => (
-                  <div key={inst.id} className="flex justify-between">
-                    <span className="text-gray-300">
+                  <div key={inst.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 text-left">
+                    <span className="min-w-0 text-gray-300 break-words">
                       {inst.installment_number === 1 ? 'Prva rata (kroz 48h)' : `${inst.installment_number}. rata`}
                       {inst.due_description && ` (${inst.due_description})`}:
                     </span>
-                    <span className={`font-semibold ${index === 0 ? 'text-pius' : 'text-white'}`}>
-                      €{Number(inst.amount).toFixed(0)}
+                    <span className={`font-semibold whitespace-nowrap text-right ${index === 0 ? 'text-pius' : 'text-white'}`}>
+                      {formatPrice(inst.amount)}
                     </span>
                   </div>
                 ))}
                 <div className="border-t border-pius/30 pt-3 mt-3">
-                  <div className="flex justify-between font-bold">
+                  <div className="flex justify-between items-start gap-4 font-bold">
                     <span className="text-gray-300">Ukupno:</span>
-                    <span className="text-pius">€{Number(packageData.price).toFixed(0)}</span>
+                    <div className="text-right whitespace-nowrap">
+                      {packageData.discount_price != null && (
+                        <s className="block text-sm font-normal text-gray-400">{formatPrice(packageData.price)}</s>
+                      )}
+                      <span className="text-pius">{formatPrice(packageData.discount_price ?? packageData.price)}</span>
+                    </div>
                   </div>
                 </div>
                 <div className="border-t border-pius/30 pt-3 mt-3">

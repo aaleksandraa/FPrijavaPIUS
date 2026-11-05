@@ -136,6 +136,8 @@ export const getStudents = (params?: Record<string, string>) =>
   api.get('/students', { params });
 
 export const createStudent = (data: any) => api.post('/students', data);
+export const addStudentEnrollment = (id: string, data: { package_type: string; payment_method: 'full' | 'installments' }) =>
+  api.post(`/students/${id}/enrollments`, data);
 
 export const getStudent = (id: string) => api.get(`/students/${id}`);
 

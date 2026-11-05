@@ -92,6 +92,7 @@ export interface PackageInstallment {
 }
 
 export interface Invoice {
+  invoice_type?: 'course' | 'other';
   id: string;
   student_id: string;
   invoice_number: string;

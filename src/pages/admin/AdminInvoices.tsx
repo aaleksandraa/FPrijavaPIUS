@@ -29,6 +29,7 @@ export default function AdminInvoices() {
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
   const [invoiceMode, setInvoiceMode] = useState<InvoiceMode>('existing');
+  const [invoiceType, setInvoiceType] = useState<'course' | 'other'>('course');
   const [saving, setSaving] = useState(false);
   const [sendingInvoice, setSendingInvoice] = useState<string | null>(null);
   const [sendingInvoiceTest, setSendingInvoiceTest] = useState<string | null>(null);
@@ -104,8 +105,8 @@ export default function AdminInvoices() {
     const pkg = student.package || packages.find(p => p.slug === student.package_type);
     setFormData(prev => ({
       ...prev, student_id: student.id, installment_number: '', notes: '', mark_as_paid: false,
-      description: `Kurs ${courseName({ ...student, package: pkg })}`,
-      total_amount: student.payment_method === 'full' ? String(pkg?.discount_price ?? pkg?.price ?? '') : '',
+      description: invoiceType === 'course' ? `Kurs ${courseName({ ...student, package: pkg })}` : '',
+      total_amount: invoiceType === 'course' && student.payment_method === 'full' ? String(pkg?.discount_price ?? pkg?.price ?? '') : '',
     }));
   };
 
@@ -149,7 +150,7 @@ export default function AdminInvoices() {
     setSaving(true);
     setFormError('');
     try {
-      let studentId = formData.student_id;
+      let studentId = invoiceType === 'other' && invoiceMode === 'existing' ? selectedPerson?.person.id || '' : formData.student_id;
       if (invoiceMode === 'new') {
         const studentRes = await createStudent({ ...newCustomer, status: 'enrolled', enrolled_at: new Date().toISOString() });
         studentId = studentRes.data.id;
@@ -161,7 +162,7 @@ export default function AdminInvoices() {
         setFormData(prev => ({ ...prev, student_id: studentId }));
         setInvoiceMode('existing');
       }
-      await createInvoice({ ...formData, student_id: studentId, total_amount: parseFloat(formData.total_amount), installment_number: formData.installment_number ? parseInt(formData.installment_number) : null });
+      await createInvoice({ ...formData, student_id: studentId, invoice_type: invoiceType, total_amount: parseFloat(formData.total_amount), installment_number: invoiceType === 'course' && formData.installment_number ? parseInt(formData.installment_number) : null });
       await loadData();
       setShowCreateModal(false);
       resetForm();
@@ -178,6 +179,7 @@ export default function AdminInvoices() {
     setStudentSearchTerm('');
     setFormError('');
     setInvoiceMode('existing');
+    setInvoiceType('course');
   };
 
   const handleDeleteClick = (invoice: Invoice) => { setInvoiceToDelete(invoice); setShowDeleteModal(true); };
@@ -375,7 +377,7 @@ export default function AdminInvoices() {
                 <tr key={invoice.id} className="hover:bg-gray-800/50">
                   <td className="px-6 py-4 whitespace-nowrap"><span className="font-mono text-pius">{invoice.invoice_number}</span></td>
                   <td className="px-6 py-4 whitespace-nowrap"><div className="flex items-center gap-2"><User className="h-4 w-4 text-gray-400" /><span className="text-white">{invoice.student?.first_name} {invoice.student?.last_name}</span></div><p className="text-xs text-gray-400 mt-1">{invoice.student?.email}</p></td>
-                  <td className="px-6 py-4"><p className="text-pius">{courseName(invoice.student)}</p><p className="text-xs text-gray-400">Upis #{invoice.student_id.slice(-8)}{invoice.installment_number ? ` · ${invoice.installment_number}. rata` : ' · Cjelokupno'}</p></td>
+                  <td className="px-6 py-4">{invoice.invoice_type === 'other' ? <p className="text-gray-400">Ostala usluga · Bez rate</p> : <><p className="text-pius">{courseName(invoice.student)}</p><p className="text-xs text-gray-400">Upis #{invoice.student_id.slice(-8)}{invoice.installment_number ? ` · ${invoice.installment_number}. rata` : ' · Cjelokupno'}</p></>}</td>
                   <td className="px-6 py-4"><span className="text-gray-300">{invoice.description}</span></td>
                   <td className="px-6 py-4 whitespace-nowrap"><span className="text-white font-semibold">€{Number(invoice.total_amount).toFixed(2)}</span></td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-400">{new Date(invoice.invoice_date).toLocaleDateString('de-AT')}</td>
@@ -430,6 +432,19 @@ export default function AdminInvoices() {
                   </button>
                 </div>
 
+                <div>
+                  <label htmlFor="invoice-type" className="block text-sm font-medium text-gray-300 mb-2">Vrsta fakture</label>
+                  <select id="invoice-type" value={invoiceType} onChange={event => {
+                    const type = event.target.value as 'course' | 'other';
+                    setInvoiceType(type);
+                    setFormData(previous => ({ ...previous, installment_number: '', description: type === 'course' && invoicePackage ? `Kurs ${invoicePackage.name}` : '', total_amount: '' }));
+                  }} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                    <option value="course">Plaćanje kursa</option>
+                    <option value="other">Ostala usluga / ručni opis (bez rate)</option>
+                  </select>
+                  {invoiceType === 'other' && <p className="text-xs text-gray-400 mt-2">Unesite opis i iznos. Ova faktura ne mijenja stanje plaćanja kursa.</p>}
+                </div>
+
                 {invoiceMode === 'existing' && (
                   <>
                     <div ref={dropdownRef} className="relative">
@@ -453,7 +468,7 @@ export default function AdminInvoices() {
                       )}
                     </div>
 
-                    {selectedPerson && (
+                    {selectedPerson && invoiceType === 'course' && (
                       <div>
                         <label htmlFor="invoice-enrollment" className="block text-sm font-medium text-gray-300 mb-2">Kurs / upis *</label>
                         <select id="invoice-enrollment" value={selectedStudent?.id || ''} onChange={event => {
@@ -475,8 +490,10 @@ export default function AdminInvoices() {
                           <p>{selectedStudent.address}, {selectedStudent.postal_code} {selectedStudent.city}, {selectedStudent.country}</p>
                           <p>{selectedStudent.email}</p>
                           <p>{selectedStudent.entity_type === 'company' ? `Pravno lice: ${selectedStudent.company_name || ''}` : 'Fizičko lice'}</p>
-                          <p className="text-pius font-semibold">{courseName(selectedStudent)} · Upis #{selectedStudent.id.slice(-8)}</p>
-                          <p>Plaćeno: €{enrollmentTotals(selectedStudent).paid.toFixed(2)} · Preostalo za kurs: €{enrollmentTotals(selectedStudent).remaining.toFixed(2)}</p>
+                          {invoiceType === 'course' && <>
+                            <p className="text-pius font-semibold">{courseName(selectedStudent)} · Upis #{selectedStudent.id.slice(-8)}</p>
+                            <p>Plaćeno: €{enrollmentTotals(selectedStudent).paid.toFixed(2)} · Preostalo za kurs: €{enrollmentTotals(selectedStudent).remaining.toFixed(2)}</p>
+                          </>}
                         </div>
                       </div>
                     )}
@@ -551,7 +568,7 @@ export default function AdminInvoices() {
                     )}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">Kurs *</label>
-                      <select value={newCustomer.package_type} onChange={(e) => { const pkg = packages.find(p => p.slug === e.target.value); setNewCustomer({ ...newCustomer, package_type: e.target.value, payment_method: pkg?.payment_type === 'installments' ? 'installments' : 'full' }); setFormData(prev => ({ ...prev, installment_number: '', description: pkg ? `Kurs ${pkg.name}` : '', total_amount: pkg?.payment_type === 'fixed' ? String(pkg.discount_price ?? pkg.price) : '' })); }} required className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                      <select value={newCustomer.package_type} onChange={(e) => { const pkg = packages.find(p => p.slug === e.target.value); setNewCustomer({ ...newCustomer, package_type: e.target.value, payment_method: pkg?.payment_type === 'installments' ? 'installments' : 'full' }); setFormData(prev => invoiceType === 'other' ? prev : ({ ...prev, installment_number: '', description: pkg ? `Kurs ${pkg.name}` : '', total_amount: pkg?.payment_type === 'fixed' ? String(pkg.discount_price ?? pkg.price) : '' })); }} required className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
                         <option value="">Odaberi kurs...</option>
                         {activePackages.map(pkg => (
                           <option key={pkg.id} value={pkg.slug}>{pkg.name} - €{Number(pkg.discount_price ?? pkg.price).toFixed(2)}</option>
@@ -563,7 +580,7 @@ export default function AdminInvoices() {
                       <select id="new-invoice-payment-method" value={newCustomer.payment_method} onChange={event => {
                         const method = event.target.value as 'full' | 'installments';
                         setNewCustomer({ ...newCustomer, payment_method: method });
-                        setFormData(previous => ({ ...previous, installment_number: '', total_amount: method === 'full' ? String(invoicePackage.discount_price ?? invoicePackage.price) : '' }));
+                        setFormData(previous => invoiceType === 'other' ? previous : ({ ...previous, installment_number: '', total_amount: method === 'full' ? String(invoicePackage.discount_price ?? invoicePackage.price) : '' }));
                       }} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
                         <option value="installments">Na rate</option><option value="full">Cjelokupno</option>
                       </select>
@@ -571,7 +588,7 @@ export default function AdminInvoices() {
                   </>
                 )}
 
-                {availableInstallments.length > 0 && (
+                {invoiceType === 'course' && availableInstallments.length > 0 && (
                   <div>
                     <label htmlFor="invoice-installment" className="block text-sm font-medium text-gray-300 mb-2">Rata za odabrani kurs *</label>
                     <select id="invoice-installment" value={formData.installment_number} onChange={event => handleInstallmentSelect(event.target.value)} required className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
@@ -591,7 +608,7 @@ export default function AdminInvoices() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Opis *</label>
-                  <input type="text" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} required placeholder="npr. Online Marketing Kurs" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
+                  <input id="invoice-description" aria-label="Opis" type="text" maxLength={255} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} required placeholder="npr. Edukativni materijal ili druga usluga" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Ukupan iznos (€) *</label>
@@ -610,7 +627,7 @@ export default function AdminInvoices() {
                 </label>
 
                 <div className="flex gap-3 pt-4 border-t border-gray-700">
-                  <button type="submit" disabled={saving || (invoiceMode === 'existing' && !selectedStudent) || (invoiceMode === 'new' && !newCustomer.package_type)} className="flex-1 bg-pius hover:bg-pius-dark text-black py-3 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                  <button type="submit" disabled={saving || (invoiceMode === 'existing' && (invoiceType === 'other' ? !selectedPerson : !selectedStudent)) || (invoiceMode === 'new' && !newCustomer.package_type)} className="flex-1 bg-pius hover:bg-pius-dark text-black py-3 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed">
                     {saving ? 'Kreiranje...' : 'Kreiraj fakturu'}
                   </button>
                   <button type="button" onClick={() => { setShowCreateModal(false); resetForm(); }} className="flex-1 border border-gray-600 text-gray-300 hover:bg-gray-800 py-3 rounded-lg font-medium">Odustani</button>

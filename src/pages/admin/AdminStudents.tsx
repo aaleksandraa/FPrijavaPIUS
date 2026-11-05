@@ -465,7 +465,7 @@ export default function AdminStudents() {
                   })}
                   <div className="flex flex-wrap gap-3">
                     <button onClick={() => navigate(`/admin/invoices?enrollment=${encodeURIComponent(selectedStudent.id)}`)} className="text-sm text-pius underline">Nova faktura za ovaj upis</button>
-                    <button onClick={() => { setEnrollmentSeed(selectedStudent); setSelectedStudent(null); setShowAddModal(true); }} className="text-sm text-pius underline">Dodaj upis na drugi kurs</button>
+                    <button onClick={() => { setEnrollmentSeed(selectedStudent); setSelectedStudent(null); setShowAddModal(true); }} className="text-sm text-pius underline">Dodaj kurs polazniku</button>
                   </div>
                 </div>
                 {/* Status Badge */}
@@ -669,6 +669,7 @@ export default function AdminStudents() {
                               </p>
                               <p className="text-xs text-gray-400">
                                 Faktura: {invoice.invoice_number}
+                                {invoice.invoice_type === 'other' && ' · Ostala usluga (izvan cijene kursa)'}
                               </p>
                             </div>
                           </div>

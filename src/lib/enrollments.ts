@@ -38,7 +38,7 @@ export function enrollmentLabel(student: Student): string {
 export function enrollmentTotals(student: Student) {
   const total = Number(student.course_total ?? student.package?.discount_price ?? student.package?.price ?? 0);
   const paid = Number(student.paid_amount ?? (
-    (student.invoices || []).filter(invoice => invoice.status === 'paid')
+    (student.invoices || []).filter(invoice => invoice.invoice_type !== 'other' && invoice.status === 'paid')
       .reduce((sum, invoice) => sum + Number(invoice.total_amount), 0)
     + (student.payments || []).filter(payment => !payment.invoice_id && payment.status === 'paid')
       .reduce((sum, payment) => sum + Number(payment.amount), 0)
@@ -52,7 +52,7 @@ export function installmentOptions(student: Pick<Student, 'payment_method' | 'in
   const installments = plan?.length ? plan : [1, 2, 3].map(number => ({ installment_number: number, amount: 0 }));
   return [...installments].sort((a, b) => a.installment_number - b.installment_number).map(installment => {
     const invoice: Invoice | undefined = student.invoices?.find(item =>
-      item.installment_number === installment.installment_number && item.status !== 'cancelled');
+      item.invoice_type !== 'other' && item.installment_number === installment.installment_number && item.status !== 'cancelled');
     const paid = invoice?.status === 'paid' || !!student.payments?.some(payment =>
       !payment.invoice_id && payment.status === 'paid' && payment.installment_number === installment.installment_number);
     return { number: installment.installment_number, amount: Number(installment.amount), invoice, paid, disabled: !!invoice || paid };

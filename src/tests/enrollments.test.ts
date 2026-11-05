@@ -56,4 +56,12 @@ describe('One person with multiple course enrollments', () => {
     const student = { ...enrollment('custom-id', 'eyeliner-lips'), payment_method: 'full' as const };
     expect(installmentOptions(student)).toEqual([]);
   });
+
+  it('excludes paid services and their linked payments from the course balance', () => {
+    const student = enrollment('custom-id', 'eyeliner-lips');
+    student.invoices = [{ id: 'service', invoice_type: 'other', status: 'paid', total_amount: 75 }] as any;
+    student.payments = [{ invoice_id: 'service', status: 'paid', amount: 75, installment_number: 1 }] as any;
+    expect(enrollmentTotals(student)).toEqual({ total: 600, paid: 0, remaining: 600 });
+    expect(installmentOptions(student).every(rate => !rate.disabled)).toBe(true);
+  });
 });

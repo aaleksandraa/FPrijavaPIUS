@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, User, Building, Loader2 } from 'lucide-react';
-import { createStudent, getPackages } from '../lib/api';
+import { addStudentEnrollment, createStudent, getPackages } from '../lib/api';
 import type { Package, Student } from '../types';
 
 interface Props {
@@ -44,19 +44,7 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess, initialStu
     if (isOpen) {
       loadPackages();
       setError('');
-      if (initialStudent) {
-        setFormData(() => {
-          const next = { ...emptyForm };
-          for (const key of Object.keys(next) as (keyof typeof next)[]) {
-            if (key === 'package_type' || key === 'payment_method') continue;
-            const value = initialStudent[key];
-            if (value !== undefined && value !== null) (next as any)[key] = value;
-          }
-          return next;
-        });
-      } else {
-        setFormData(emptyForm);
-      }
+      setFormData(emptyForm);
     }
   }, [isOpen, initialStudent]);
 
@@ -66,6 +54,8 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess, initialStu
       setPackages(res.data.filter((p: Package) => p.is_active));
     } catch (err) {
       console.error(err);
+      setPackages([]);
+      setError('Ponudu kurseva nije moguće učitati. Zatvorite prozor i pokušajte ponovo.');
     }
   };
 
@@ -75,16 +65,20 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess, initialStu
     setError('');
 
     try {
-      await createStudent({
-        ...formData,
-        status: 'enrolled',
-        enrolled_at: new Date().toISOString(),
-      });
+      if (initialStudent) {
+        await addStudentEnrollment(initialStudent.id, { package_type: formData.package_type, payment_method: formData.payment_method });
+      } else {
+        await createStudent({
+          ...formData,
+          status: 'enrolled',
+          enrolled_at: new Date().toISOString(),
+        });
+      }
       onSuccess();
       onClose();
       setFormData(emptyForm);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Greška pri dodavanju studenta');
+      setError(Object.values(err.response?.data?.errors || {}).flat().join(' ') || err.response?.data?.message || 'Greška pri dodavanju studenta');
     } finally {
       setLoading(false);
     }
@@ -109,7 +103,7 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess, initialStu
       >
         {/* Header */}
         <div className="sticky top-0 bg-gray-900 border-b border-gray-700 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-          <h2 className="text-xl font-semibold text-white">{initialStudent ? 'Novi upis postojećeg polaznika' : 'Dodaj novog polaznika'}</h2>
+          <h2 className="text-xl font-semibold text-white">{initialStudent ? 'Dodaj kurs polazniku' : 'Dodaj novog polaznika'}</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors"
@@ -127,40 +121,47 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess, initialStu
           )}
 
           {/* Entity Type */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-3">Tip registracije *</label>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, entity_type: 'individual' })}
-                className={`p-4 rounded-xl border-2 transition-all ${
-                  formData.entity_type === 'individual'
-                    ? 'border-pius bg-pius/10'
-                    : 'border-gray-700 hover:border-gray-600'
-                }`}
-              >
-                <User className="h-6 w-6 mx-auto mb-2 text-pius" />
-                <div className="text-white font-medium">Fizičko lice</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, entity_type: 'company' })}
-                className={`p-4 rounded-xl border-2 transition-all ${
-                  formData.entity_type === 'company'
-                    ? 'border-pius bg-pius/10'
-                    : 'border-gray-700 hover:border-gray-600'
-                }`}
-              >
-                <Building className="h-6 w-6 mx-auto mb-2 text-pius" />
-                <div className="text-white font-medium">Pravno lice</div>
-              </button>
+          {initialStudent ? <div className="bg-gray-800/50 rounded-lg p-4">
+            <p className="text-white font-medium">{initialStudent.first_name} {initialStudent.last_name}</p>
+            <p className="text-sm text-gray-400">{initialStudent.email}</p>
+            <p className="text-sm text-gray-400 mt-2">Lični podaci se preuzimaju iz postojećeg upisa.</p>
+          </div> : (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-3">Tip registracije *</label>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, entity_type: 'individual' })}
+                  className={`p-4 rounded-xl border-2 transition-all ${
+                    formData.entity_type === 'individual'
+                      ? 'border-pius bg-pius/10'
+                      : 'border-gray-700 hover:border-gray-600'
+                  }`}
+                >
+                  <User className="h-6 w-6 mx-auto mb-2 text-pius" />
+                  <div className="text-white font-medium">Fizičko lice</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, entity_type: 'company' })}
+                  className={`p-4 rounded-xl border-2 transition-all ${
+                    formData.entity_type === 'company'
+                      ? 'border-pius bg-pius/10'
+                      : 'border-gray-700 hover:border-gray-600'
+                  }`}
+                >
+                  <Building className="h-6 w-6 mx-auto mb-2 text-pius" />
+                  <div className="text-white font-medium">Pravno lice</div>
+                </button>
+              </div>
             </div>
-          </div>
 
+          )}
           {/* Package Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Kurs *</label>
+            <label htmlFor="student-package" className="block text-sm font-medium text-gray-300 mb-2">Kurs *</label>
             <select
+              id="student-package"
               value={formData.package_type}
               onChange={(e) => { const pkg = packages.find(item => item.slug === e.target.value); setFormData({ ...formData, package_type: e.target.value, payment_method: pkg?.payment_type === 'installments' ? 'installments' : 'full' }); }}
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
@@ -169,7 +170,7 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess, initialStu
               <option value="">Odaberi kurs</option>
               {packages.map((pkg) => (
                 <option key={pkg.id} value={pkg.slug}>
-                  {pkg.name} - €{Number(pkg.price).toFixed(2)}
+                  {pkg.name} - €{Number(pkg.discount_price ?? pkg.price).toFixed(2)}
                 </option>
               ))}
             </select>
@@ -181,8 +182,9 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess, initialStu
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
+                disabled={packages.find(pkg => pkg.slug === formData.package_type)?.payment_type === 'fixed'}
                 onClick={() => setFormData({ ...formData, payment_method: 'installments' })}
-                className={`p-3 rounded-lg border-2 transition-all ${
+                className={`p-3 rounded-lg border-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                   formData.payment_method === 'installments'
                     ? 'border-pius bg-pius/10 text-white'
                     : 'border-gray-700 text-gray-400 hover:border-gray-600'
@@ -205,186 +207,189 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess, initialStu
           </div>
 
           {/* Personal Info */}
-          <div className="grid grid-cols-2 gap-4">
+          {!initialStudent && <>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Ime *</label>
+                <input
+                  type="text"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Prezime *</label>
+                <input
+                  type="text"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Email *</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Telefon *</label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                  required
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Ime *</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Adresa *</label>
               <input
                 type="text"
-                value={formData.first_name}
-                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
                 required
               />
             </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Poštanski broj *</label>
+                <input
+                  type="text"
+                  value={formData.postal_code}
+                  onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Grad *</label>
+                <input
+                  type="text"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Država *</label>
+                <input
+                  type="text"
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                  required
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Prezime *</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Broj ličnog dokumenta *</label>
               <input
                 type="text"
-                value={formData.last_name}
-                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                value={formData.id_document_number}
+                onChange={(e) => setFormData({ ...formData, id_document_number: e.target.value })}
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                placeholder="Broj pasoša ili lične karte"
                 required
               />
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Email *</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Telefon *</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Adresa *</label>
-            <input
-              type="text"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Poštanski broj *</label>
-              <input
-                type="text"
-                value={formData.postal_code}
-                onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Grad *</label>
-              <input
-                type="text"
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Država *</label>
-              <input
-                type="text"
-                value={formData.country}
-                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Broj ličnog dokumenta *</label>
-            <input
-              type="text"
-              value={formData.id_document_number}
-              onChange={(e) => setFormData({ ...formData, id_document_number: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-              placeholder="Broj pasoša ili lične karte"
-              required
-            />
-          </div>
-
-          {/* Company Info */}
-          {formData.entity_type === 'company' && (
-            <div className="space-y-4 pt-4 border-t border-gray-700">
-              <h3 className="text-lg font-semibold text-pius">Podaci o firmi</h3>
+            {/* Company Info */}
+            {formData.entity_type === 'company' && (
+              <div className="space-y-4 pt-4 border-t border-gray-700">
+                <h3 className="text-lg font-semibold text-pius">Podaci o firmi</h3>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Naziv firme *</label>
-                  <input
-                    type="text"
-                    value={formData.company_name}
-                    onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                    required={formData.entity_type === 'company'}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Naziv firme *</label>
+                    <input
+                      type="text"
+                      value={formData.company_name}
+                      onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                      required={formData.entity_type === 'company'}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">PDV broj</label>
+                    <input
+                      type="text"
+                      value={formData.vat_number}
+                      onChange={(e) => setFormData({ ...formData, vat_number: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">PDV broj</label>
-                  <input
-                    type="text"
-                    value={formData.vat_number}
-                    onChange={(e) => setFormData({ ...formData, vat_number: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                  />
-                </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Adresa firme</label>
-                <input
-                  type="text"
-                  value={formData.company_address}
-                  onChange={(e) => setFormData({ ...formData, company_address: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Adresa firme</label>
+                  <input
+                    type="text"
+                    value={formData.company_address}
+                    onChange={(e) => setFormData({ ...formData, company_address: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                  />
+                </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Poštanski broj</label>
-                  <input
-                    type="text"
-                    value={formData.company_postal_code}
-                    onChange={(e) => setFormData({ ...formData, company_postal_code: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                  />
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Poštanski broj</label>
+                    <input
+                      type="text"
+                      value={formData.company_postal_code}
+                      onChange={(e) => setFormData({ ...formData, company_postal_code: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Grad</label>
+                    <input
+                      type="text"
+                      value={formData.company_city}
+                      onChange={(e) => setFormData({ ...formData, company_city: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Država</label>
+                    <input
+                      type="text"
+                      value={formData.company_country}
+                      onChange={(e) => setFormData({ ...formData, company_country: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Grad</label>
-                  <input
-                    type="text"
-                    value={formData.company_city}
-                    onChange={(e) => setFormData({ ...formData, company_city: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Država</label>
-                  <input
-                    type="text"
-                    value={formData.company_country}
-                    onChange={(e) => setFormData({ ...formData, company_country: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                  />
-                </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Registracijski broj</label>
-                <input
-                  type="text"
-                  value={formData.company_registration}
-                  onChange={(e) => setFormData({ ...formData, company_registration: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Registracijski broj</label>
+                  <input
+                    type="text"
+                    value={formData.company_registration}
+                    onChange={(e) => setFormData({ ...formData, company_registration: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-pius text-white"
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            )}
+
+          </>}
 
           {/* Actions */}
           <div className="flex gap-4 pt-4">
@@ -397,7 +402,7 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess, initialStu
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !packages.some(pkg => pkg.slug === formData.package_type)}
               className="flex-1 px-4 py-3 bg-pius hover:bg-pius-dark text-black rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
               {loading ? (
@@ -406,7 +411,7 @@ export default function AddStudentModal({ isOpen, onClose, onSuccess, initialStu
                   Dodavanje...
                 </>
               ) : (
-                'Dodaj studenta'
+                initialStudent ? 'Dodaj kurs' : 'Dodaj studenta'
               )}
             </button>
           </div>
